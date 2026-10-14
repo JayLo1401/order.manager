@@ -3,7 +3,7 @@
 <p class="guest-who">Hallo {{ ctx.guest.label }}! Was darf’s sein?</p>
 {% if products %}{{ m.veg_filter() }}{% endif %}
 
-<form method="post" action="{{ ctx.base }}/order" id="order-form">
+<form method="post" action="{{ ctx.base }}/order" id="order-form" data-product-options="{{ product_options|tojson|forceescape }}">
   {{ m.csrf() }}
   <div class="option-list">
     {% if ctx.settings.allow_custom %}
@@ -46,6 +46,7 @@
       </div>
     </div>
   {% endif %}
+  {% include "guest/_options_sheet.html" %}
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=5"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=6"></script>{% endblock %}

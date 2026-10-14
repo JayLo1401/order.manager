@@ -2,7 +2,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models.catalog import Ingredient, Product
+from app.models.catalog import Ingredient, Product, ProductOption
 from app.models.event import Event, Guest, Order
 from app.models.settings import HostSettings
 from app.push.service import collect_subscriptions, get_vapid_keys, send_push
@@ -39,6 +39,7 @@ def order_to_dict(order: Order) -> dict:
         "is_custom": order.is_custom,
         "vegetarian": order.vegetarian,
         "ingredients": order.ingredients or [],
+        "options": order.options or [],
         "note": order.note,
         "guest": order.guest.label if order.guest else "",
         "guest_id": order.guest_id,
@@ -61,6 +62,34 @@ def can_order_more(db: Session, guest: Guest, host_settings: HostSettings) -> bo
     return limit == 0 or active_order_count(db, guest) < limit + guest.extra_orders
 
 
+def options_for(db: Session, event: Event) -> list[ProductOption]:
+    """Alle aktiven Optionen des Gastgebers fuer diesen Bestelltag."""
+    return list(db.scalars(
+        select(ProductOption)
+        .where(ProductOption.owner_id == event.owner_id, ProductOption.kind == event.kind,
+               ProductOption.active.is_(True))
+        .order_by(ProductOption.sort_order, ProductOption.name)
+    ))
+
+
+def validate_options(db: Session, event: Event, product: Product | None, option_ids: list[int]) -> list[ProductOption]:
+    """product=None = Wunschpizza. Unbekannte/nicht erlaubte Optionen fuehren zu
+    einem Fehler statt still ignoriert zu werden - der Gast soll bekommen, was
+    er ausgewaehlt hat."""
+    if not option_ids:
+        return []
+    by_id = {o.id: o for o in options_for(db, event)}
+    chosen = []
+    for option_id in dict.fromkeys(option_ids):
+        option = by_id.get(option_id)
+        if option is None or not option.available_for(product):
+            raise OrderError("Eine gewählte Option ist für diese Pizza nicht verfügbar.")
+        chosen.append(option)
+    if sum(1 for o in chosen if o.option_group == "shape") > 1:
+        raise OrderError("Bitte wähle nur eine Form (z.B. Calzone oder Sternpizza).")
+    return sorted(chosen, key=lambda o: (o.option_group != "shape", o.sort_order, o.name))
+
+
 def place_order(
     db: Session,
     event: Event,
@@ -69,6 +98,7 @@ def place_order(
     product_id: int | None,
     ingredient_ids: list[int],
     note: str,
+    option_ids: list[int] | None = None,
 ) -> Order:
     if not event.ordering_open:
         raise OrderError("Bestellungen sind gerade pausiert.")
@@ -83,6 +113,7 @@ def place_order(
             raise OrderError("Diese Pizza ist leider nicht mehr verfügbar.")
         item_name, item_icon, is_custom = product.name, product.icon, False
         ingredients = product.ingredients
+        options = validate_options(db, event, product, option_ids or [])
     else:
         if not host_settings.allow_custom:
             raise OrderError("Wunschpizzen sind nicht verfügbar.")
@@ -102,6 +133,7 @@ def place_order(
             raise OrderError(f"Maximal {host_settings.max_custom_ingredients} Zutaten erlaubt.")
         item_name, item_icon, is_custom = "Wunschpizza", "✨", True
         product_id = None
+        options = validate_options(db, event, None, option_ids or [])
 
     # Event-Zeile sperren, damit parallele Bestellungen keine doppelte Nummer
     # bekommen (unter SQLite in den Tests ein No-Op).
@@ -117,6 +149,7 @@ def place_order(
         item_name=item_name,
         item_icon=item_icon,
         ingredients=[{"name": i.name, "icon": i.icon, "vegetarian": i.vegetarian} for i in ingredients],
+        options=[{"name": o.name, "icon": o.icon, "group": o.option_group} for o in options],
         note=note.strip()[:300] if host_settings.allow_note else "",
         status="new",
     )

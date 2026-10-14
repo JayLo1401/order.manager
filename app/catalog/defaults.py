@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.catalog import NON_VEGETARIAN_CATEGORIES, Ingredient, Product
+from app.models.catalog import NON_VEGETARIAN_CATEGORIES, Ingredient, Product, ProductOption
 from app.models.settings import HostSettings
 
 # (Name, Symbol, Kategorie, bei Wunschpizza vorausgewaehlt)
@@ -78,6 +78,12 @@ DEFAULT_PIZZAS: list[tuple[str, str, str, list[str]]] = [
 ]
 
 
+# (Name, Symbol, Beschreibung, Art, bei allen Pizzen)
+DEFAULT_OPTIONS: list[tuple[str, str, str, str, bool]] = [
+    ("Calzone", "🥟", "Zusammengeklappt gebacken – Belag innen", "shape", True),
+]
+
+
 def ensure_host_settings(db: Session, owner_id: int) -> HostSettings:
     host_settings = db.scalar(select(HostSettings).where(HostSettings.owner_id == owner_id))
     if host_settings is None:
@@ -109,8 +115,8 @@ def add_missing_default_ingredients(db: Session, owner_id: int) -> int:
 
 
 def seed_catalog(db: Session, owner_id: int) -> None:
-    """Idempotent: legt Einstellungen, Zutaten und Pizzen nur an, wenn der
-    Gastgeber noch keine hat."""
+    """Idempotent: legt Einstellungen, Zutaten, Pizzen und Optionen nur an,
+    wenn der Gastgeber noch keine hat."""
     ensure_host_settings(db, owner_id)
     has_ingredients = db.scalar(select(Ingredient.id).where(Ingredient.owner_id == owner_id).limit(1))
     if has_ingredients is None:
@@ -126,5 +132,13 @@ def seed_catalog(db: Session, owner_id: int) -> None:
                 owner_id=owner_id, kind="pizza", name=name, icon=icon, description=description,
                 active=True, sort_order=index * 10,
                 ingredients=[by_name[n] for n in ingredient_names if n in by_name],
+            ))
+
+    has_options = db.scalar(select(ProductOption.id).where(ProductOption.owner_id == owner_id).limit(1))
+    if has_options is None:
+        for index, (name, icon, description, group, all_products) in enumerate(DEFAULT_OPTIONS):
+            db.add(ProductOption(
+                owner_id=owner_id, kind="pizza", name=name, icon=icon, description=description,
+                option_group=group, active=True, all_products=all_products, sort_order=(index + 1) * 10,
             ))
     db.flush()

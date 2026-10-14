@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Optionen – Bestell-Manager{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Optionen</h1>
+</div>
+<p class="muted">
+  Zubereitungs-Optionen wie „als Calzone“, „als Sternpizza“ oder „mit Käserand“. Der Gast wird vor dem Abschließen der Bestellung danach gefragt.
+</p>
+
+<div class="card">
+  <h2>Neue Option</h2>
+  <form method="post" action="/options">
+    {{ m.csrf() }}
+    <div class="form-row">
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" required maxlength="80" placeholder="z.B. Sternpizza">
+      </div>
+      <div class="field">
+        <label for="description">Beschreibung <span class="muted small">(für die Gäste)</span></label>
+        <input type="text" id="description" name="description" placeholder="z.B. Rand in Sternform mit Käse gefüllt">
+      </div>
+    </div>
+    <div class="field">
+      <label for="new-icon">Symbol</label>
+      {{ m.symbol_picker('icon', '', symbol_groups, 'new-icon') }}
+    </div>
+    <div class="field">
+      <label>Art</label>
+      <label class="check"><input type="radio" name="option_group" value="shape" checked> <span><b>Form</b> – Gast kann nur eine wählen (z.B. Calzone, Sternpizza)</span></label>
+      <label class="check"><input type="radio" name="option_group" value="extra"> <span><b>Extra</b> – beliebig kombinierbar (z.B. Käserand, extra knusprig)</span></label>
+    </div>
+    <label class="check"><input type="checkbox" name="all_products" value="1" checked> Bei allen Pizzen verfügbar (auch bei der Wunschpizza)</label>
+    <p class="muted small">Ohne Haken ordnest du die Option im nächsten Schritt einzelnen Pizzen zu – bei der Wunschpizza ist sie dann nicht wählbar.</p>
+    <button class="btn btn-primary" type="submit">Hinzufügen</button>
+  </form>
+</div>
+
+{% if items %}
+<p class="muted small">
+  Zum Sortieren am <span aria-hidden="true">⠿</span> ziehen – in dieser Reihenfolge sehen sie die Gäste.
+  <span class="sort-status" data-sortable-status></span>
+</p>
+<div class="option-admin-list" data-sortable data-sortable-url="/options/reorder" data-csrf="{{ csrf_token() }}">
+  {% for o in items %}
+    <div class="ing-row {{ '' if o.active else 'inactive' }}" id="option-{{ o.id }}" data-sortable-id="{{ o.id }}">
+      <button type="button" class="drag-handle" data-sortable-handle title="Ziehen zum Sortieren" aria-label="{{ o.name }} verschieben">⠿</button>
+      <span class="ing-icon emoji">{{ o.icon }}</span>
+      <span class="ing-name">
+        <b>{{ o.name }}</b> <span class="badge {{ 'badge-primary' if o.option_group == 'shape' else '' }}">{{ o.group_label }}</span>
+        {% if o.description %}<small>{{ o.description }}</small>{% endif %}
+        <small>
+          {% if o.all_products %}Bei allen Pizzen inkl. Wunschpizza
+          {% elif o.products %}Nur bei: {{ o.products|map(attribute='name')|join(', ') }}
+          {% else %}<span style="color:var(--danger)">Noch keiner Pizza zugeordnet – für Gäste nicht sichtbar</span>{% endif %}
+        </small>
+      </span>
+      <form method="post" action="/options/{{ o.id }}/toggle" class="inline">
+        {{ m.csrf() }}
+        <button class="switch {{ 'on' if o.active }}" title="{{ 'Deaktivieren' if o.active else 'Aktivieren' }}" aria-label="{{ 'Deaktivieren' if o.active else 'Aktivieren' }}"><span></span></button>
+      </form>
+      <a class="btn btn-sm btn-ghost" href="/options/{{ o.id }}" title="Bearbeiten">✏️</a>
+      <form method="post" action="/options/{{ o.id }}/delete" class="inline" data-confirm="Option „{{ o.name }}“ löschen?">
+        {{ m.csrf() }}
+        <button class="btn btn-sm btn-ghost" title="Löschen">🗑️</button>
+      </form>
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="empty"><div class="big emoji">🥟</div>Noch keine Optionen angelegt.</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/js/sortable.js?v=1"></script>{% endblock %}

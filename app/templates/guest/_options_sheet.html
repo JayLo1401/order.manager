@@ -1,0 +1,36 @@
+{# Wird vor dem Absenden eingeblendet, wenn es fuer die gewaehlte Pizza Optionen gibt.
+   Muss innerhalb des Bestell-Formulars stehen, damit option_ids mitgeschickt werden. #}
+{% if options %}
+<div class="modal-backdrop" id="options-sheet" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="options-title">
+    <h2 id="options-title">Wie hättest du sie gern?</h2>
+    {% for group, label, hint in [('shape', 'Form', 'nur eine wählbar'), ('extra', 'Extras', 'beliebig kombinierbar')] %}
+      {% set items = options|selectattr('option_group', 'equalto', group)|list %}
+      {% if items %}
+        <section data-option-section>
+          <h3 class="section-title">{{ label }} <span class="small">({{ hint }})</span></h3>
+          <div class="option-choices">
+            {% for o in items %}
+              <label class="ing-tile option-choice" data-option-id="{{ o.id }}">
+                <input type="checkbox" name="option_ids" value="{{ o.id }}" data-group="{{ o.option_group }}">
+                <span>
+                  <b class="emoji">{{ o.icon }}</b>
+                  <span class="option-choice-text">
+                    {{ o.name }}
+                    {% if o.description %}<small>{{ o.description }}</small>{% endif %}
+                  </span>
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% endfor %}
+    <p class="muted small" style="margin-top:.75rem">Ohne Auswahl bekommst du die Pizza ganz klassisch.</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary btn-lg btn-block" data-options-confirm>Bestellung abschließen</button>
+      <button type="button" class="btn btn-block" data-options-cancel>Zurück</button>
+    </div>
+  </div>
+</div>
+{% endif %}

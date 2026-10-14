@@ -54,6 +54,7 @@
       </div>
       <button class="btn btn-ghost" type="button" data-close aria-label="Schließen" style="font-size:1.4rem">✕</button>
     </div>
+    <div class="modal-options" id="modal-options" hidden></div>
     <div class="ing-list emoji-mixed" id="modal-ingredients"></div>
     <div class="tile-note" id="modal-note" hidden></div>
     <p class="muted small" id="modal-meta"></p>
@@ -76,5 +77,5 @@
       readOnly: {{ 'false' if is_today else 'true' }}
     };
   </script>
-  {% if event %}<script src="/static/js/kitchen.js?v=4"></script>{% endif %}
+  {% if event %}<script src="/static/js/kitchen.js?v=5"></script>{% endif %}
 {% endblock %}

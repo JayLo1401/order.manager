@@ -39,6 +39,25 @@
     </div>
   {% endfor %}
 
+  <h2 style="margin-top:1.5rem">Optionen</h2>
+  {% if global_options %}
+    <p class="muted small">
+      Immer verfügbar: {% for o in global_options %}<span class="emoji">{{ o.icon }}</span> {{ o.name }}{{ ', ' if not loop.last }}{% endfor %}
+    </p>
+  {% endif %}
+  {% if manual_options %}
+    <div class="ing-grid">
+      {% for o in manual_options %}
+        <label class="ing-tile">
+          <input type="checkbox" name="option_ids" value="{{ o.id }}" {{ 'checked' if o.id in selected_option_ids }}>
+          <span><b class="emoji">{{ o.icon }}</b>{{ o.name }}{% if not o.active %} <small class="muted">(inaktiv)</small>{% endif %}</span>
+        </label>
+      {% endfor %}
+    </div>
+  {% elif not global_options %}
+    <p class="muted small">Noch keine Optionen angelegt – siehe <a href="/options">Optionen</a>.</p>
+  {% endif %}
+
   <button class="btn btn-primary btn-lg" type="submit">Speichern</button>
 </form>
 {% endblock %}

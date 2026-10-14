@@ -5,6 +5,7 @@
 
   // Doppelt-Absenden verhindern (sonst zwei Bestellungen bei Doppeltipp)
   document.addEventListener("submit", (ev) => {
+    if (ev.defaultPrevented) return; // z.B. Options-Fenster wird erst angezeigt
     const msg = ev.target.dataset.confirm;
     if (msg && !window.confirm(msg)) { ev.preventDefault(); return; }
     ev.target.querySelectorAll("[data-once]").forEach((b) => {
@@ -29,6 +30,62 @@
     };
     boxes.forEach((b) => b.addEventListener("change", update));
     update();
+  }
+
+  // ---------------------------------------------------------------- Optionen
+  // Vor dem Absenden: Gibt es fuer die gewaehlte Pizza Optionen (Calzone,
+  // Kaeserand ...), fragt ein Fenster danach. Sonst wird direkt bestellt.
+  const sheet = $("#options-sheet");
+  const orderForm = sheet && sheet.closest("form");
+  if (orderForm) {
+    // Pizza-Auswahl: {pizza_id: [option_ids]}; Wunschpizza: kein Mapping = alle angezeigten
+    const map = orderForm.dataset.productOptions ? JSON.parse(orderForm.dataset.productOptions) : null;
+    const confirmBtn = sheet.querySelector("[data-options-confirm]");
+    let confirmed = false;
+
+    const allowedIds = () => {
+      if (!map) return null;
+      const selected = orderForm.querySelector('input[name="product_id"]:checked');
+      return selected ? (map[selected.value] || []) : [];
+    };
+
+    orderForm.addEventListener("submit", (ev) => {
+      if (confirmed) return;
+      const allowed = allowedIds();
+      let visible = 0;
+      sheet.querySelectorAll("[data-option-id]").forEach((choice) => {
+        const ok = allowed === null || allowed.includes(Number(choice.dataset.optionId));
+        choice.hidden = !ok;
+        if (!ok) choice.querySelector("input").checked = false;
+        else visible += 1;
+      });
+      sheet.querySelectorAll("[data-option-section]").forEach((section) => {
+        section.hidden = !section.querySelector("[data-option-id]:not([hidden])");
+      });
+      if (!visible) return; // keine Optionen fuer diese Pizza -> direkt bestellen
+      ev.preventDefault();
+      sheet.hidden = false;
+      confirmBtn.focus();
+    });
+
+    // "Form": hoechstens eine (Calzone ODER Sternpizza)
+    sheet.addEventListener("change", (ev) => {
+      const box = ev.target;
+      if (box.checked && box.dataset.group === "shape") {
+        sheet.querySelectorAll('input[data-group="shape"]').forEach((other) => {
+          if (other !== box) other.checked = false;
+        });
+      }
+    });
+
+    confirmBtn.addEventListener("click", () => {
+      confirmed = true;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = "Wird gesendet …";
+      orderForm.requestSubmit();
+    });
+    sheet.querySelector("[data-options-cancel]").addEventListener("click", () => { sheet.hidden = true; });
+    sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.hidden = true; });
   }
 
   // ---------------------------------------------------------------- Nur vegetarisch

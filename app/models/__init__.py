@@ -1,4 +1,4 @@
-from app.models.catalog import Ingredient, Product, product_ingredients
+from app.models.catalog import Ingredient, Product, ProductOption, product_ingredients, product_option_links
 from app.models.event import Event, Guest, Order
 from app.models.push import PushSubscription
 from app.models.settings import HostSettings, PlatformSettings
@@ -12,7 +12,9 @@ __all__ = [
     "Order",
     "PlatformSettings",
     "Product",
+    "ProductOption",
     "PushSubscription",
     "User",
     "product_ingredients",
+    "product_option_links",
 ]

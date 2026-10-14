@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Bestellungen">
-  <link rel="stylesheet" href="/static/css/app.css?v=6">
+  <link rel="stylesheet" href="/static/css/app.css?v=7">
   <script src="/static/js/app.js?v=2" defer></script>
   {% block head %}{% endblock %}
 </head>
@@ -27,6 +27,7 @@
         <a href="/kitchen" class="{{ 'active' if path.startswith('/kitchen') }}">Küchenmonitor</a>
         <a href="/link" class="{{ 'active' if path.startswith('/link') }}">Link &amp; QR-Code</a>
         <a href="/pizzas" class="{{ 'active' if path.startswith('/pizzas') }}">Pizzen</a>
+        <a href="/options" class="{{ 'active' if path.startswith('/options') }}">Optionen</a>
         <a href="/ingredients" class="{{ 'active' if path.startswith('/ingredients') }}">Zutaten</a>
         <a href="/settings" class="{{ 'active' if path.startswith('/settings') }}">Einstellungen</a>
         {% if request.session.get("role") == "superuser" %}

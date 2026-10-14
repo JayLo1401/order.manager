@@ -66,6 +66,8 @@ class Order(Base):
     item_name: Mapped[str] = mapped_column(String(120))
     item_icon: Mapped[str] = mapped_column(String(16), default="")
     ingredients: Mapped[list] = mapped_column(JSON, default=list)
+    # Gewaehlte Optionen (Momentaufnahme): [{"name": ..., "icon": ..., "group": ...}]
+    options: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     note: Mapped[str] = mapped_column(String(300), default="")
     status: Mapped[str] = mapped_column(String(20), default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

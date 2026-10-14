@@ -13,7 +13,14 @@ from app.models.catalog import Ingredient, Product
 from app.models.event import Event, Guest, Order
 from app.models.push import PushSubscription
 from app.models.settings import HostSettings
-from app.orders.service import OrderError, can_order_more, change_status, order_to_dict, place_order
+from app.orders.service import (
+    OrderError,
+    can_order_more,
+    change_status,
+    options_for,
+    order_to_dict,
+    place_order,
+)
 from app.push.service import get_vapid_keys
 from app.templating import flash, templates
 from app.timeutil import today_local
@@ -123,7 +130,11 @@ def menu(request: Request, ctx: GuestContext = Depends(require_guest), db: Sessi
         ) if p.available]
     if not products and ctx.settings.allow_custom:
         return RedirectResponse(f"{ctx.base}/custom", status_code=303)
-    return _render(request, "menu.html", ctx, products=products)
+    options = options_for(db, ctx.event)
+    # Welche Optionen gibt es bei welcher Pizza? (fuer das Options-Fenster)
+    product_options = {p.id: [o.id for o in options if o.available_for(p)] for p in products}
+    return _render(request, "menu.html", ctx, products=products, options=options,
+                   product_options=product_options)
 
 
 @router.get("/custom")
@@ -137,7 +148,8 @@ def custom(request: Request, ctx: GuestContext = Depends(require_guest), db: Ses
         .where(Ingredient.owner_id == ctx.event.owner_id, Ingredient.kind == ctx.event.kind, Ingredient.active.is_(True))
         .order_by(Ingredient.sort_order, Ingredient.name)
     ))
-    return _render(request, "custom.html", ctx, groups=group_by_category(ingredients))
+    options = [o for o in options_for(db, ctx.event) if o.available_for(None)]
+    return _render(request, "custom.html", ctx, groups=group_by_category(ingredients), options=options)
 
 
 @router.post("/order", dependencies=[Depends(verify_csrf)])
@@ -145,12 +157,13 @@ def order(
     request: Request,
     product_id: int | None = Form(None),
     ingredient_ids: list[int] = Form(default=[]),
+    option_ids: list[int] = Form(default=[]),
     note: str = Form(""),
     ctx: GuestContext = Depends(require_guest),
     db: Session = Depends(get_db),
 ):
     try:
-        place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note)
+        place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note, option_ids)
     except OrderError as exc:
         flash(request, str(exc), "error")
         return RedirectResponse(f"{ctx.base}/{'custom' if not product_id else 'menu'}", status_code=303)

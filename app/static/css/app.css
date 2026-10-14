@@ -185,6 +185,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1
   border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
 }
 .ing-row.inactive { opacity: .55; }
+.option-admin-list { display: grid; gap: .5rem; }
+.option-admin-list .ing-row .badge { font-size: .7rem; }
 .ing-row .ing-icon { font-size: 1.5rem; width: 2rem; text-align: center; }
 .ing-row .ing-name { flex: 1; min-width: 0; }
 .ing-row .ing-name small { display: block; color: var(--muted); }
@@ -252,6 +254,11 @@ body.kitchen .site-footer { display: none; }
 .tile-guest { font-weight: 700; font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile-item { font-size: 1.05rem; }
 .tile-icons { font-size: 1.35rem; letter-spacing: .1rem; line-height: 1.3; }
+.tile-options, .modal-options {
+  font-weight: 800; color: var(--warn); background: var(--warn-soft);
+  border-radius: 6px; padding: .15rem .45rem; align-self: flex-start;
+}
+.modal-options { margin-top: .75rem; font-size: 1.15rem; padding: .4rem .7rem; }
 .tile-note { font-size: .9rem; background: var(--surface-2); border-radius: 6px; padding: .15rem .4rem; }
 .tile-status { position: absolute; right: .7rem; bottom: .6rem; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--primary-soft); } }
@@ -304,6 +311,12 @@ body.guest { background: var(--bg); }
 .option-text .desc { color: var(--muted); font-size: .9rem; }
 
 .custom-link { border-style: dashed !important; }
+
+.option-choices { display: grid; gap: .5rem; }
+.option-choice span { align-items: center; }
+.option-choice-text { display: block; }
+.option-choice-text small { display: block; color: var(--muted); font-weight: normal; font-size: .85rem; }
+.order-options { font-weight: 700; color: var(--warn); }
 
 .veg-filter {
   display: flex; align-items: center; justify-content: center; gap: .6rem;

@@ -24,6 +24,8 @@
     return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`;
   }
 
+  const optionsText = (o) => (o.options || []).map((x) => `${x.icon} ${x.name}`.trim()).join(" · ");
+
   function tileHtml(o, fresh) {
     const icons = o.ingredients.map((i) => i.icon).filter(Boolean).join("");
     return `
@@ -34,6 +36,7 @@
         </div>
         <div class="tile-guest">${esc(o.guest || "Gast")}${o.guest_extra_orders ? ` <span title="Nachschlag freigegeben">🎁${o.guest_extra_orders > 1 ? o.guest_extra_orders : ""}</span>` : ""}</div>
         <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}${o.vegetarian ? ' <span class="badge badge-veg">🌱</span>' : ""}</div>
+        ${optionsText(o) ? `<div class="tile-options">${esc(optionsText(o))}</div>` : ""}
         <div class="tile-icons emoji">${esc(icons)}</div>
         ${o.note ? `<div class="tile-note">💬 ${esc(o.note)}</div>` : ""}
         ${o.status === "in_progress" ? '<span class="tile-status badge badge-warn">In Arbeit</span>' : ""}
@@ -107,6 +110,8 @@
     $("#modal-number").textContent = `Bestellung #${o.number} · ${o.status_label}`;
     $("#modal-title").innerHTML = `<span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}`;
     $("#modal-guest").textContent = (o.guest || "Gast") + (o.vegetarian ? " · 🌱 vegetarisch" : "");
+    $("#modal-options").hidden = !optionsText(o);
+    $("#modal-options").textContent = optionsText(o);
     $("#modal-ingredients").innerHTML = o.ingredients
       .map((i) => `<div><span class="emoji">${esc(i.icon)}</span> ${esc(i.name)}</div>`).join("");
     $("#modal-note").hidden = !o.note;
