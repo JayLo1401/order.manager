@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from app.auth.security import hash_password
 from app.catalog.defaults import seed_catalog
-from app.models.catalog import Product
+from app.models.catalog import Ingredient, Product
 from app.models.user import User
 from tests.conftest import csrf_from, login
 
@@ -11,6 +11,38 @@ def _pizza_ids(db_session, owner_id):
     return [p.id for p in db_session.scalars(
         select(Product).where(Product.owner_id == owner_id).order_by(Product.sort_order)
     )]
+
+
+def _pizza(db_session, owner_id, name):
+    return db_session.scalar(select(Product).where(Product.owner_id == owner_id, Product.name == name))
+
+
+def test_vegetarian_derived_from_ingredients(client, db_session, admin):
+    margherita = _pizza(db_session, admin.id, "Margherita")
+    salami = _pizza(db_session, admin.id, "Salami")
+    assert margherita.vegetarian is True
+    assert salami.vegetarian is False
+
+    # Basilikum als "nicht vegetarisch" markieren -> Margherita kippt automatisch
+    login(client, "admin@test.at", "geheim123")
+    basil = next(i for i in margherita.ingredients if i.name == "Basilikum")
+    token = csrf_from(client, f"/ingredients/{basil.id}")
+    client.post(f"/ingredients/{basil.id}", data={
+        "name": basil.name, "icon": basil.icon, "category": basil.category, "sort_order": basil.sort_order,
+        "active": "1", "csrf_token": token,
+    })
+    db_session.expire_all()
+    assert _pizza(db_session, admin.id, "Margherita").vegetarian is False
+
+
+def test_new_ingredient_vegetarian_flag(client, db_session, admin):
+    login(client, "admin@test.at", "geheim123")
+    token = csrf_from(client, "/ingredients")
+    client.post("/ingredients", data={"name": "Tofu", "category": "other", "vegetarian": "1", "csrf_token": token})
+    client.post("/ingredients", data={"name": "Lachs", "category": "fish", "csrf_token": token})
+    by_name = {i.name: i for i in db_session.scalars(select(Ingredient).where(Ingredient.owner_id == admin.id))}
+    assert by_name["Tofu"].vegetarian is True
+    assert by_name["Lachs"].vegetarian is False
 
 
 def test_reorder_pizzas(client, db_session, admin):

@@ -13,7 +13,7 @@
     <div class="ing-grid">
       {% for i in items %}
         <label class="ing-tile">
-          <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" {{ 'checked' if i.default_selected }}>
+          <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" data-vegetarian="{{ 1 if i.vegetarian else 0 }}" {{ 'checked' if i.default_selected }}>
           <span><b class="emoji">{{ i.icon }}</b>{{ i.name }}</span>
         </label>
       {% endfor %}
@@ -35,4 +35,4 @@
   </div>
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=2"></script>{% endblock %}

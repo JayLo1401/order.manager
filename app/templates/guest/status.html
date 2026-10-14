@@ -17,6 +17,7 @@
   <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}">
     <div class="order-no">Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
     <div class="order-item"><span class="emoji">{{ o.item_icon }}</span> {{ o.item_name }}</div>
+    {% if o.vegetarian %}<div><span class="badge badge-veg">🌱 Vegetarisch</span></div>{% endif %}
     <div class="order-icons emoji">{% for i in o.ingredients %}{{ i.icon }}{% endfor %}</div>
     <div class="muted small">{% for i in o.ingredients %}{{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
     {% if o.note %}<div class="muted small">💬 {{ o.note }}</div>{% endif %}
@@ -67,4 +68,4 @@
 {% endif %}
 <p class="muted small" style="text-align:center;margin-top:1rem">Diese Seite aktualisiert sich automatisch.</p>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=2"></script>{% endblock %}

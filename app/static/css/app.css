@@ -173,6 +173,8 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1
 .badge-warn { background: var(--warn-soft); color: var(--warn); }
 .badge-danger { background: var(--danger-soft); color: var(--danger); }
 .badge-primary { background: var(--primary-soft); color: var(--primary); }
+.badge-veg { background: var(--ok-soft); color: var(--ok); font-weight: 600; vertical-align: middle; }
+.option-text strong .badge-veg { display: inline-block; font-size: .75rem; margin-left: .25rem; }
 
 .chips { display: flex; flex-wrap: wrap; gap: .35rem; }
 .chip { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .55rem; border-radius: 999px; background: var(--surface-2); font-size: .85rem; }

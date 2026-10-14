@@ -24,6 +24,7 @@
           <button class="switch {{ 'on' if p.active }}" title="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}" aria-label="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}"><span></span></button>
         </form>
       </div>
+      {% if p.vegetarian %}<p style="margin-bottom:.4rem"><span class="badge badge-veg">🌱 Vegetarisch</span></p>{% endif %}
       {% if p.description %}<p class="muted">{{ p.description }}</p>{% endif %}
       <div class="chips" style="margin-bottom:.75rem">
         {% for i in p.ingredients %}

@@ -32,7 +32,7 @@
           <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
         </div>
         <div class="tile-guest">${esc(o.guest || "Gast")}</div>
-        <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}</div>
+        <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}${o.vegetarian ? ' <span class="badge badge-veg">🌱</span>' : ""}</div>
         <div class="tile-icons emoji">${esc(icons)}</div>
         ${o.note ? `<div class="tile-note">💬 ${esc(o.note)}</div>` : ""}
         ${o.status === "in_progress" ? '<span class="tile-status badge badge-warn">In Arbeit</span>' : ""}
@@ -98,7 +98,7 @@
   function fillModal(o) {
     $("#modal-number").textContent = `Bestellung #${o.number} · ${o.status_label}`;
     $("#modal-title").innerHTML = `<span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}`;
-    $("#modal-guest").textContent = o.guest || "Gast";
+    $("#modal-guest").textContent = (o.guest || "Gast") + (o.vegetarian ? " · 🌱 vegetarisch" : "");
     $("#modal-ingredients").innerHTML = o.ingredients
       .map((i) => `<div><span class="emoji">${esc(i.icon)}</span> ${esc(i.name)}</div>`).join("");
     $("#modal-note").hidden = !o.note;

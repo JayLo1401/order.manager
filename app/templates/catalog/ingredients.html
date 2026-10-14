@@ -17,7 +17,7 @@
       </div>
       <div class="field">
         <label for="category">Kategorie</label>
-        <select id="category" name="category">
+        <select id="category" name="category" data-veg-target="#new-vegetarian">
           {% for key, label in categories.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
         </select>
       </div>
@@ -26,12 +26,13 @@
       <label for="new-icon">Symbol</label>
       {{ m.symbol_picker('icon', '', symbol_groups, 'new-icon') }}
     </div>
+    <label class="check"><input type="checkbox" name="vegetarian" value="1" id="new-vegetarian" checked> 🌱 Vegetarisch</label>
     <label class="check"><input type="checkbox" name="default_selected" value="1"> Bei der Wunschpizza vorausgewählt</label>
     <button class="btn btn-primary" type="submit">Hinzufügen</button>
   </form>
 </div>
 
-<p class="muted small">Inaktive Zutaten sind für Gäste nicht wählbar. Vorgefertigte Pizzen mit einer inaktiven Zutat werden automatisch ausgeblendet.</p>
+<p class="muted small">Inaktive Zutaten sind für Gäste nicht wählbar. Vorgefertigte Pizzen mit einer inaktiven Zutat werden automatisch ausgeblendet. Eine Pizza gilt als vegetarisch, wenn alle ihre Zutaten vegetarisch sind.</p>
 
 {% for key, label, items in groups %}
   <h2 class="section-title">{{ label }}</h2>
@@ -41,7 +42,10 @@
         <span class="ing-icon emoji">{{ i.icon }}</span>
         <span class="ing-name">
           {{ i.name }}
-          {% if i.default_selected %}<small>vorausgewählt</small>{% endif %}
+          {% set tags = [] %}
+          {% if i.vegetarian %}{% set _ = tags.append('🌱 vegetarisch') %}{% else %}{% set _ = tags.append('nicht vegetarisch') %}{% endif %}
+          {% if i.default_selected %}{% set _ = tags.append('vorausgewählt') %}{% endif %}
+          <small>{{ tags|join(' · ') }}</small>
         </span>
         <form method="post" action="/ingredients/{{ i.id }}/toggle" class="inline">
           {{ m.csrf() }}

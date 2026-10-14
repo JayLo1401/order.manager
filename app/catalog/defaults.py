@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.catalog import Ingredient, Product
+from app.models.catalog import NON_VEGETARIAN_CATEGORIES, Ingredient, Product
 from app.models.settings import HostSettings
 
 # (Name, Symbol, Kategorie, bei Wunschpizza vorausgewaehlt)
@@ -101,6 +101,7 @@ def add_missing_default_ingredients(db: Session, owner_id: int) -> int:
         db.add(Ingredient(
             owner_id=owner_id, kind="pizza", name=name, icon=icon, category=category,
             active=True, default_selected=default_selected, sort_order=index * 10,
+            vegetarian=category not in NON_VEGETARIAN_CATEGORIES,
         ))
         added += 1
     db.flush()

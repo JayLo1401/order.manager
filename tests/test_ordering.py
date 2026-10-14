@@ -71,6 +71,8 @@ def test_guest_orders_preset_and_kitchen_completes(client, db_session, admin):
     assert len(data["orders"]) == 1
     order = data["orders"][0]
     assert order["guest"] == "Anna" and order["note"] == "knusprig" and order["number"] == 1
+    assert order["vegetarian"] is True
+    assert "Vegetarisch" in status.text
 
     kitchen_csrf = csrf_from(client, "/kitchen")
     headers = {"X-CSRF-Token": kitchen_csrf}

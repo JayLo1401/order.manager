@@ -37,6 +37,7 @@ def order_to_dict(order: Order) -> dict:
         "item_name": order.item_name,
         "item_icon": order.item_icon,
         "is_custom": order.is_custom,
+        "vegetarian": order.vegetarian,
         "ingredients": order.ingredients or [],
         "note": order.note,
         "guest": order.guest.label if order.guest else "",
@@ -113,7 +114,7 @@ def place_order(
         is_custom=is_custom,
         item_name=item_name,
         item_icon=item_icon,
-        ingredients=[{"name": i.name, "icon": i.icon} for i in ingredients],
+        ingredients=[{"name": i.name, "icon": i.icon, "vegetarian": i.vegetarian} for i in ingredients],
         note=note.strip()[:300] if host_settings.allow_note else "",
         status="new",
     )

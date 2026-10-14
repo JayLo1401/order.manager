@@ -75,3 +75,10 @@ class Order(Base):
     @property
     def status_label(self) -> str:
         return ORDER_STATUSES.get(self.status, self.status)
+
+    @property
+    def vegetarian(self) -> bool:
+        # Aeltere Bestellungen ohne "vegetarian" in der Momentaufnahme gelten
+        # vorsichtshalber als nicht vegetarisch.
+        items = self.ingredients or []
+        return bool(items) and all(i.get("vegetarian", False) for i in items)

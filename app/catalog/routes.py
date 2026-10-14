@@ -64,6 +64,7 @@ def create_ingredient(
     icon: str = Form(""),
     category: str = Form("other"),
     default_selected: bool = Form(False),
+    vegetarian: bool = Form(False),
     db: Session = Depends(get_db),
     user: User = Depends(require_login),
 ):
@@ -75,6 +76,7 @@ def create_ingredient(
         owner_id=user.id, kind="pizza", name=name[:80], icon=icon.strip()[:16],
         category=category if category in INGREDIENT_CATEGORIES else "other",
         default_selected=default_selected, active=True, sort_order=_next_sort_order(db, Ingredient, user),
+        vegetarian=vegetarian,
     ))
     db.commit()
     flash(request, f"Zutat „{name}“ hinzugefügt.")
@@ -109,6 +111,7 @@ def update_ingredient(
     sort_order: int = Form(0),
     active: bool = Form(False),
     default_selected: bool = Form(False),
+    vegetarian: bool = Form(False),
     db: Session = Depends(get_db),
     user: User = Depends(require_login),
 ):
@@ -120,6 +123,7 @@ def update_ingredient(
     item.sort_order = sort_order
     item.active = active
     item.default_selected = default_selected
+    item.vegetarian = vegetarian
     db.commit()
     flash(request, f"Zutat „{item.name}“ gespeichert.")
     return RedirectResponse("/ingredients", status_code=303)

@@ -51,6 +51,14 @@
 
   document.querySelectorAll("[data-share]").forEach((b) => { b.hidden = !navigator.share; });
 
+  // Neue Zutat: "vegetarisch" passend zur Kategorie vorbelegen (aenderbar)
+  document.querySelectorAll("select[data-veg-target]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const box = document.querySelector(select.dataset.vegTarget);
+      if (box) box.checked = !["meat", "fish"].includes(select.value);
+    });
+  });
+
   // ---------------------------------------------------------------- PWA
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});

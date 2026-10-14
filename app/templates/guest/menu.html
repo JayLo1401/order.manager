@@ -20,7 +20,7 @@
         <span class="option-body">
           <span class="option-icon emoji">{{ p.icon }}</span>
           <span class="option-text">
-            <strong>{{ p.name }}</strong>
+            <strong>{{ p.name }}{% if p.vegetarian %} <span class="badge badge-veg">🌱 Vegetarisch</span>{% endif %}</strong>
             {% if p.description %}<span class="desc">{{ p.description }}</span><br>{% endif %}
             <span class="desc">{% for i in p.ingredients %}<span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</span>
           </span>
@@ -44,4 +44,4 @@
   {% endif %}
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=2"></script>{% endblock %}

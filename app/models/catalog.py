@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -16,6 +16,9 @@ INGREDIENT_CATEGORIES = {
     "herb": "Kräuter & Gewürze",
     "other": "Sonstiges",
 }
+
+# Vorbelegung fuer "vegetarisch", wenn eine Zutat neu angelegt wird
+NON_VEGETARIAN_CATEGORIES = ("meat", "fish")
 
 product_ingredients = Table(
     "product_ingredients",
@@ -37,6 +40,7 @@ class Ingredient(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     # Bei der Wunschpizza bereits vorausgewaehlt (z.B. Tomatensauce, Mozzarella)
     default_selected: Mapped[bool] = mapped_column(Boolean, default=False)
+    vegetarian: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     @property
@@ -66,3 +70,8 @@ class Product(Base):
     def available(self) -> bool:
         """Nur bestellbar, wenn alle Zutaten aktiv sind."""
         return self.active and all(i.active for i in self.ingredients)
+
+    @property
+    def vegetarian(self) -> bool:
+        """Ergibt sich aus den Zutaten - kein eigenes Feld, damit es nie veraltet."""
+        return bool(self.ingredients) and all(i.vegetarian for i in self.ingredients)

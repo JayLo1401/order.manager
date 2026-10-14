@@ -21,10 +21,11 @@
       const checked = boxes.filter((b) => b.checked);
       const n = checked.length;
       boxes.forEach((b) => { b.disabled = max > 0 && n >= max && !b.checked; });
+      const vegetarian = n > 0 && checked.every((b) => b.dataset.vegetarian === "1");
       $("#custom-submit").disabled = n === 0;
       $("#custom-summary").textContent = n === 0
         ? "Bitte wähle mindestens eine Zutat"
-        : `${n} Zutat${n === 1 ? "" : "en"} gewählt${max ? ` (max. ${max})` : ""}`;
+        : `${n} Zutat${n === 1 ? "" : "en"} gewählt${max ? ` (max. ${max})` : ""}${vegetarian ? " · 🌱 vegetarisch" : ""}`;
     };
     boxes.forEach((b) => b.addEventListener("change", update));
     update();
