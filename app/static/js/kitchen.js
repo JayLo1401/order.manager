@@ -93,8 +93,14 @@
       { status: "new", label: "Zurück auf „Eingegangen“", cls: "btn-sm" },
       { status: "cancelled", label: "Stornieren", cls: "btn-danger btn-sm", confirm: "Bestellung wirklich stornieren?" },
     ],
-    done: [{ status: "in_progress", label: "Wieder öffnen", cls: "" }],
-    cancelled: [{ status: "new", label: "Wiederherstellen", cls: "" }],
+    done: [
+      { status: "in_progress", label: "Wieder öffnen", cls: "" },
+      { deleteGuest: true, label: "🗑️ Gast endgültig löschen", cls: "btn-danger btn-sm" },
+    ],
+    cancelled: [
+      { status: "new", label: "Wiederherstellen", cls: "" },
+      { deleteGuest: true, label: "🗑️ Gast endgültig löschen", cls: "btn-danger btn-sm" },
+    ],
   };
 
   function fillModal(o) {
@@ -113,6 +119,7 @@
     $("#modal-actions").querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const a = actions[Number(btn.dataset.action)];
+        if (a.deleteGuest) { deleteGuest(o, btn); return; }
         if (a.confirm && !window.confirm(a.confirm)) return;
         setStatus(o.id, a.status, btn);
       });
@@ -130,6 +137,29 @@
       $("#extra-grant").onclick = (ev) => setExtra(o.guest_id, 1, ev.currentTarget);
       $("#extra-revoke").onclick = (ev) => setExtra(o.guest_id, -1, ev.currentTarget);
     }
+  }
+
+  async function deleteGuest(o, btn) {
+    const theirs = orders.filter((x) => x.guest_id === o.guest_id);
+    const list = theirs.map((x) => `#${x.number} ${x.item_name}`).join(", ");
+    const msg = `${o.guest || "Gast"} und ${theirs.length === 1 ? "die Bestellung" : `alle ${theirs.length} Bestellungen`} `
+      + `(${list}) endgültig löschen?\n\nDas kann nicht rückgängig gemacht werden.`;
+    if (!window.confirm(msg)) return;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/kitchen/api/guests/${o.guest_id}`, {
+        method: "DELETE",
+        headers: { "X-CSRF-Token": cfg.csrf },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || "Löschen fehlgeschlagen.");
+      }
+    } catch (e) {
+      alert("Keine Verbindung zum Server.");
+    }
+    closeModal();
+    load();
   }
 
   async function setExtra(guestId, delta, btn) {

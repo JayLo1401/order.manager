@@ -1,7 +1,7 @@
 """Kuechenmonitor: Live-Uebersicht der Bestellungen (Touch-optimiert)."""
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.dependencies import require_login, require_login_api, verify_csrf_header
@@ -9,6 +9,7 @@ from app.catalog.defaults import ensure_host_settings
 from app.database import get_db
 from app.events.service import today_event
 from app.models.event import Event, Guest, Order
+from app.models.push import PushSubscription
 from app.models.user import User
 from app.orders.service import OrderError, change_extra_orders, change_status, order_to_dict
 from app.templating import templates
@@ -57,6 +58,27 @@ def orders_api(event_id: int | None = None, db: Session = Depends(get_db), user:
         },
         "orders": [order_to_dict(o) for o in orders],
     }
+
+
+@router.delete("/api/guests/{guest_id}", dependencies=[Depends(verify_csrf_header)])
+def delete_guest(guest_id: int, db: Session = Depends(get_db), user: User = Depends(require_login_api)):
+    """Gast endgueltig loeschen (z.B. Testbestellungen). Nur wenn keine seiner
+    Bestellungen mehr offen ist."""
+    guest = db.get(Guest, guest_id)
+    event = db.get(Event, guest.event_id) if guest else None
+    if guest is None or event is None or event.owner_id != user.id:
+        raise HTTPException(status_code=404)
+    open_orders = db.scalar(select(func.count(Order.id)).where(
+        Order.guest_id == guest.id, Order.status.in_(("new", "in_progress"))
+    ))
+    if open_orders:
+        raise HTTPException(status_code=409, detail="Der Gast hat noch offene Bestellungen.")
+    # Explizit statt nur per FK-Cascade, damit es auch ohne DB-Cascade sauber ist
+    db.execute(delete(PushSubscription).where(PushSubscription.guest_id == guest.id))
+    db.execute(delete(Order).where(Order.guest_id == guest.id))
+    db.delete(guest)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/api/guests/{guest_id}/extra", dependencies=[Depends(verify_csrf_header)])

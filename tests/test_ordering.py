@@ -136,6 +136,35 @@ def test_kitchen_grants_extra_order(client, db_session, admin):
     assert response.json()["extra_orders"] == 0
 
 
+def test_kitchen_deletes_guest_with_orders(client, db_session, admin):
+    from app.models.event import Guest
+
+    event = _create_link(client, db_session, admin)
+    guest = _guest(client)
+    _join(guest, event, name="Testgast")
+    product = db_session.scalar(select(Product).where(Product.owner_id == admin.id))
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+    guest.post(f"/o/{event.token}/order", data={"product_id": product.id, "csrf_token": token})
+    order = client.get("/kitchen/api/orders").json()["orders"][0]
+    headers = {"X-CSRF-Token": csrf_from(client, "/kitchen")}
+
+    # Offene Bestellung -> Loeschen verweigert
+    response = client.delete(f"/kitchen/api/guests/{order['guest_id']}", headers=headers)
+    assert response.status_code == 409
+
+    client.post(f"/kitchen/api/orders/{order['id']}/status", json={"status": "done"}, headers=headers)
+    assert client.delete(f"/kitchen/api/guests/{order['guest_id']}").status_code == 400  # ohne CSRF
+    assert client.delete(f"/kitchen/api/guests/{order['guest_id']}", headers=headers).status_code == 200
+
+    db_session.expire_all()
+    assert db_session.scalars(select(Order)).all() == []
+    assert db_session.scalars(select(Guest)).all() == []
+    assert client.get("/kitchen/api/orders").json()["orders"] == []
+    # Handy des geloeschten Gastes landet wieder bei der Anmeldung, Name ist frei
+    assert guest.get(f"/o/{event.token}/status", follow_redirects=False).headers["location"] == f"/o/{event.token}"
+    assert _join(_guest(client), event, name="Testgast").status_code == 303
+
+
 def test_extra_order_only_for_own_guests(client, db_session, admin):
     from app.auth.security import hash_password
     from app.catalog.defaults import seed_catalog
@@ -156,6 +185,8 @@ def test_extra_order_only_for_own_guests(client, db_session, admin):
     headers = {"X-CSRF-Token": csrf_from(colleague, "/kitchen")}
     response = colleague.post(f"/kitchen/api/guests/{guest_id}/extra", json={"delta": 1}, headers=headers)
     assert response.status_code == 404
+    assert colleague.delete(f"/kitchen/api/guests/{guest_id}", headers=headers).status_code == 404
+    assert db_session.get(Guest, guest_id) is not None
 
 
 def test_custom_pizza_respects_limits_and_inactive(client, db_session, admin):

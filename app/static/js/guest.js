@@ -96,6 +96,11 @@
   async function poll() {
     try {
       const res = await fetch(ordersEl.dataset.statusUrl, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (res.redirected) {
+        // Gast wurde in der Kueche geloescht -> zurueck zur Anmeldung
+        location.reload();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         let changed = false;
