@@ -1,0 +1,16 @@
+{
+  "name": "Bestell-Manager – Küchenmonitor",
+  "short_name": "Bestellungen",
+  "description": "Live-Übersicht der Bestellungen",
+  "start_url": "/kitchen",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14171c",
+  "theme_color": "#1b6b3e",
+  "icons": [
+    { "src": "/static/img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/img/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/static/img/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

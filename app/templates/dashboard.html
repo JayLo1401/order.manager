@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-head">
+  <h1>Hallo {{ user.name }} 👋</h1>
+  <div class="actions">
+    <a class="btn btn-primary btn-lg" href="/kitchen">🍕 Küchenmonitor öffnen</a>
+  </div>
+</div>
+
+{% if pending_users %}
+  <div class="flash flash-error">
+    {{ pending_users }} Registrierung{{ 'en' if pending_users != 1 }} warte{{ 'n' if pending_users != 1 }} auf Freischaltung –
+    <a href="/admin/users">jetzt prüfen</a>
+  </div>
+{% endif %}
+
+<div class="card">
+  <h2>Heute</h2>
+  {% if event %}
+    <p>
+      <strong>{{ event.title }}</strong> –
+      {% if event.ordering_open %}<span class="badge badge-ok">Bestellungen offen</span>
+      {% else %}<span class="badge badge-warn">Bestellungen pausiert</span>{% endif %}
+    </p>
+    <div class="grid" style="margin-bottom:1rem">
+      <div class="card stat"><div class="value">{{ counts.get('new', 0) }}</div><div class="label">Eingegangen</div></div>
+      <div class="card stat"><div class="value">{{ counts.get('in_progress', 0) }}</div><div class="label">In Zubereitung</div></div>
+      <div class="card stat"><div class="value">{{ counts.get('done', 0) }}</div><div class="label">Fertig</div></div>
+    </div>
+    <div class="url-box">
+      <input type="text" readonly value="{{ url }}" id="guest-url">
+      <button class="btn" type="button" data-copy="#guest-url">Kopieren</button>
+      <a class="btn" href="/link">QR-Code</a>
+    </div>
+  {% else %}
+    <p class="muted">Für heute gibt es noch keinen Bestell-Link.</p>
+    <form method="post" action="/link/create">
+      {{ m.csrf() }}
+      <button class="btn btn-primary" type="submit">Bestell-Link für heute erstellen</button>
+    </form>
+  {% endif %}
+</div>
+
+<div class="grid">
+  <a class="card tile-link" href="/link"><span class="big-icon emoji">🔗</span><span><strong>Link &amp; QR-Code</strong><span class="muted small">Für WhatsApp oder zum Ausdrucken</span></span></a>
+  <a class="card tile-link" href="/pizzas"><span class="big-icon emoji">🍕</span><span><strong>Pizzen</strong><span class="muted small">Vorgefertigte Pizzen verwalten</span></span></a>
+  <a class="card tile-link" href="/ingredients"><span class="big-icon emoji">🍅</span><span><strong>Zutaten</strong><span class="muted small">Aktivieren, hinzufügen, löschen</span></span></a>
+  <a class="card tile-link" href="/settings"><span class="big-icon emoji">⚙️</span><span><strong>Einstellungen</strong><span class="muted small">Gäste-Angaben, Bestell-Limit …</span></span></a>
+</div>
+{% endblock %}

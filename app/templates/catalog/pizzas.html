@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Pizzen – Bestell-Manager{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Vorgefertigte Pizzen</h1>
+  <a class="btn btn-primary" href="/pizzas/new">+ Neue Pizza</a>
+</div>
+
+{% if items %}
+<div class="grid-2">
+  {% for p in items %}
+    <div class="card" id="pizza-{{ p.id }}" style="{{ '' if p.active else 'opacity:.6' }}">
+      <div class="page-head" style="margin-bottom:.5rem">
+        <h2 style="margin:0"><span class="emoji">{{ p.icon }}</span> {{ p.name }}</h2>
+        <form method="post" action="/pizzas/{{ p.id }}/toggle" class="inline">
+          {{ m.csrf() }}
+          <button class="switch {{ 'on' if p.active }}" title="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}" aria-label="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}"><span></span></button>
+        </form>
+      </div>
+      {% if p.description %}<p class="muted">{{ p.description }}</p>{% endif %}
+      <div class="chips" style="margin-bottom:.75rem">
+        {% for i in p.ingredients %}
+          <span class="chip" style="{{ '' if i.active else 'text-decoration:line-through;opacity:.6' }}"><span class="emoji">{{ i.icon }}</span>{{ i.name }}</span>
+        {% endfor %}
+      </div>
+      {% if p.active and not p.available %}
+        <p class="small"><span class="badge badge-warn">Für Gäste ausgeblendet</span> – mindestens eine Zutat ist deaktiviert.</p>
+      {% endif %}
+      <div class="actions">
+        <a class="btn btn-sm" href="/pizzas/{{ p.id }}">Bearbeiten</a>
+        <form method="post" action="/pizzas/{{ p.id }}/delete" class="inline" data-confirm="Pizza „{{ p.name }}“ löschen?">
+          {{ m.csrf() }}<button class="btn btn-sm btn-danger">Löschen</button>
+        </form>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="empty"><div class="big emoji">🍕</div>Noch keine Pizzen angelegt.</div>
+{% endif %}
+{% endblock %}

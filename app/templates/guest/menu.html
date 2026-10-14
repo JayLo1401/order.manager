@@ -1,0 +1,47 @@
+{% extends "guest/guest_base.html" %}
+{% block content %}
+<p class="guest-who">Hallo {{ ctx.guest.label }}! Was darf’s sein?</p>
+
+<form method="post" action="{{ ctx.base }}/order" id="order-form">
+  {{ m.csrf() }}
+  <div class="option-list">
+    {% if ctx.settings.allow_custom %}
+      <a class="option" href="{{ ctx.base }}/custom" style="text-decoration:none;color:inherit">
+        <span class="option-body custom-link">
+          <span class="option-icon emoji">✨</span>
+          <span class="option-text"><strong>Wunschpizza</strong><span class="desc">Stell dir deine Pizza selbst zusammen</span></span>
+          <span style="font-size:1.4rem">›</span>
+        </span>
+      </a>
+    {% endif %}
+    {% for p in products %}
+      <label class="option">
+        <input type="radio" name="product_id" value="{{ p.id }}" required>
+        <span class="option-body">
+          <span class="option-icon emoji">{{ p.icon }}</span>
+          <span class="option-text">
+            <strong>{{ p.name }}</strong>
+            {% if p.description %}<span class="desc">{{ p.description }}</span><br>{% endif %}
+            <span class="desc">{% for i in p.ingredients %}<span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</span>
+          </span>
+        </span>
+      </label>
+    {% endfor %}
+  </div>
+
+  {% if products %}
+    {% if ctx.settings.allow_note %}
+      <div class="field" style="margin-top:1rem">
+        <label for="note">Anmerkung <span class="muted small">(optional)</span></label>
+        <input type="text" id="note" name="note" maxlength="300" placeholder="z.B. ohne Oregano, gut durch …">
+      </div>
+    {% endif %}
+    <div class="order-bar">
+      <div class="order-bar-inner">
+        <button class="btn btn-primary btn-lg btn-block" type="submit" data-once>Jetzt bestellen</button>
+      </div>
+    </div>
+  {% endif %}
+</form>
+{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=1"></script>{% endblock %}

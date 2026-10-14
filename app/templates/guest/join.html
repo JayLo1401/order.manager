@@ -1,0 +1,29 @@
+{% extends "guest/guest_base.html" %}
+{% block content %}
+{% set mode = ctx.settings.guest_identity %}
+{% if ctx.settings.welcome_text %}
+  <div class="card" style="white-space: pre-line">{{ ctx.settings.welcome_text }}</div>
+{% endif %}
+<div class="card">
+  {% if not ctx.event.ordering_open %}
+    <div class="flash flash-error">Bestellungen sind gerade pausiert – du kannst dich aber schon anmelden.</div>
+  {% endif %}
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ ctx.base }}/join">
+    {{ m.csrf() }}
+    {% if mode in ('name', 'name_and_table') %}
+      <div class="field">
+        <label for="name">Dein Name</label>
+        <input type="text" id="name" name="name" value="{{ form.name or '' }}" required maxlength="80" autocomplete="given-name" autofocus>
+      </div>
+    {% endif %}
+    {% if mode in ('table', 'name_and_table') %}
+      <div class="field">
+        <label for="table_no">Tischnummer</label>
+        <input type="text" id="table_no" name="table_no" value="{{ form.table_no or '' }}" required maxlength="20" inputmode="numeric" {{ 'autofocus' if mode == 'table' }}>
+      </div>
+    {% endif %}
+    <button class="btn btn-primary btn-lg btn-block" type="submit">Weiter zur Bestellung</button>
+  </form>
+</div>
+{% endblock %}

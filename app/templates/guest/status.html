@@ -1,0 +1,70 @@
+{% extends "guest/guest_base.html" %}
+{% set steps = [('new', '📝', 'Eingegangen'), ('in_progress', '👨‍🍳', 'In Zubereitung'), ('done', '🍕', 'Fertig')] %}
+{% set step_index = {'new': 0, 'in_progress': 1, 'done': 2} %}
+{% block content %}
+{% if just_ordered %}
+  <div class="success">
+    <div class="big emoji">✅</div>
+    <h2 style="margin:.3rem 0">Erfolgreich bestellt!</h2>
+    <p style="margin:0">Hier siehst du jederzeit den aktuellen Stand deiner Bestellung.</p>
+  </div>
+{% endif %}
+
+<p class="guest-who">{{ ctx.guest.label }}</p>
+
+<div id="orders" data-status-url="{{ ctx.base }}/api/status">
+{% for o in orders %}
+  <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}">
+    <div class="order-no">Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
+    <div class="order-item"><span class="emoji">{{ o.item_icon }}</span> {{ o.item_name }}</div>
+    <div class="order-icons emoji">{% for i in o.ingredients %}{{ i.icon }}{% endfor %}</div>
+    <div class="muted small">{% for i in o.ingredients %}{{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
+    {% if o.note %}<div class="muted small">💬 {{ o.note }}</div>{% endif %}
+
+    {% if o.status == 'cancelled' %}
+      <div class="big-status">Storniert</div>
+    {% else %}
+      {% set current = step_index[o.status] %}
+      <div class="steps">
+        {% for key, icon, label in steps %}
+          <div class="step {{ 'reached' if loop.index0 <= current }} {{ 'current' if loop.index0 == current and o.status != 'done' }}">
+            <div class="dot emoji">{{ icon }}</div>{{ label }}
+          </div>
+        {% endfor %}
+      </div>
+      {% if o.status == 'done' %}
+        <div class="big-status">Deine Pizza ist fertig – guten Appetit! 🎉</div>
+      {% elif o.status == 'in_progress' %}
+        <div class="big-status">Wird gerade zubereitet …</div>
+      {% else %}
+        <div class="big-status">Bestellung ist eingegangen</div>
+      {% endif %}
+    {% endif %}
+
+    {% if o.status == 'new' and ctx.settings.allow_cancel %}
+      <form method="post" action="{{ ctx.base }}/orders/{{ o.id }}/cancel" data-confirm="Bestellung wirklich stornieren?" style="margin-top:.75rem">
+        {{ m.csrf() }}<button class="btn btn-sm btn-danger">Stornieren</button>
+      </form>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="card" style="text-align:center"><p class="muted">Du hast noch nichts bestellt.</p></div>
+{% endfor %}
+</div>
+
+{% if orders %}
+<div class="card" id="notify-card" hidden data-vapid-key="{{ vapid_public_key }}" data-push-url="{{ ctx.base }}/push" data-csrf="{{ csrf_token() }}">
+  <p style="margin-bottom:.5rem"><strong>🔔 Benachrichtigung, wenn deine Pizza fertig ist?</strong></p>
+  <button class="btn btn-primary btn-block" type="button" id="notify-btn">Benachrichtigung aktivieren</button>
+  <p class="muted small" id="notify-hint" style="margin:.5rem 0 0"></p>
+</div>
+{% endif %}
+
+{% if can_order_more %}
+  <a class="btn btn-block" href="{{ ctx.base }}/menu">+ Weitere Pizza bestellen</a>
+{% elif not ctx.event.ordering_open %}
+  <p class="muted" style="text-align:center">Bestellungen sind gerade pausiert.</p>
+{% endif %}
+<p class="muted small" style="text-align:center;margin-top:1rem">Diese Seite aktualisiert sich automatisch.</p>
+{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=1"></script>{% endblock %}

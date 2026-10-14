@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Link &amp; QR-Code – Bestell-Manager{% endblock %}
+{% block content %}
+<h1>Bestell-Link &amp; QR-Code</h1>
+
+{% if event %}
+<div class="grid-2">
+  <div class="card" style="text-align:center">
+    <div class="qr-box">{{ qr|safe }}</div>
+    <p class="muted small" style="margin-top:.5rem">Gültig nur heute, {{ event.day.strftime('%d.%m.%Y') }}</p>
+    <div class="actions" style="justify-content:center">
+      <a class="btn" href="/link/print" target="_blank">🖨️ Drucken</a>
+      <a class="btn" href="/link/qr.png">⬇️ QR als Bild</a>
+    </div>
+  </div>
+  <div class="card">
+    <h2>{{ event.title }}</h2>
+    <p>
+      {% if event.ordering_open %}<span class="badge badge-ok">Bestellungen offen</span>
+      {% else %}<span class="badge badge-warn">Bestellungen pausiert</span>{% endif %}
+    </p>
+    <div class="field">
+      <label for="guest-url">Link für Gäste</label>
+      <div class="url-box">
+        <input type="text" readonly value="{{ url }}" id="guest-url">
+        <button class="btn" type="button" data-copy="#guest-url">Kopieren</button>
+      </div>
+    </div>
+    <div class="actions" style="margin-bottom:1rem">
+      <a class="btn btn-primary" href="{{ whatsapp_url }}" target="_blank" rel="noopener">💬 Per WhatsApp teilen</a>
+      <button class="btn" type="button" data-share data-share-text="{{ share_text }}" data-share-url="{{ url }}" hidden>📤 Teilen …</button>
+    </div>
+    <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0">
+    <div class="actions">
+      <form method="post" action="/link/toggle" class="inline">
+        {{ m.csrf() }}<input type="hidden" name="next" value="/link">
+        <button class="btn">{{ '⏸️ Bestellungen pausieren' if event.ordering_open else '▶️ Bestellungen öffnen' }}</button>
+      </form>
+      <form method="post" action="/link/regenerate" class="inline" data-confirm="Neuen Link erzeugen? Der bisherige Link und QR-Code funktionieren dann nicht mehr.">
+        {{ m.csrf() }}<button class="btn btn-danger">🔄 Neuen Link erzeugen</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <p>Für heute gibt es noch keinen Bestell-Link. Der Link ist nur am heutigen Tag gültig.</p>
+  <form method="post" action="/link/create">
+    {{ m.csrf() }}
+    <button class="btn btn-primary btn-lg" type="submit">Bestell-Link für heute erstellen</button>
+  </form>
+</div>
+{% endif %}
+
+{% if history %}
+<div class="card">
+  <h2>Bisherige Bestelltage</h2>
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Datum</th><th>Titel</th><th>Bestellungen</th><th></th></tr></thead>
+    <tbody>
+      {% for e, n in history %}
+        <tr>
+          <td>{{ e.day.strftime('%d.%m.%Y') }}</td>
+          <td>{{ e.title }}</td>
+          <td>{{ n }}</td>
+          <td><a href="/kitchen?event_id={{ e.id }}">Ansehen</a></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}

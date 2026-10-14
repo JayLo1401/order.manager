@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}QR-Code drucken{% endblock %}
+{% block content %}
+<div class="print-sheet">
+  <div class="emoji" style="font-size:4rem">🍕</div>
+  <h1>{{ event.title }}</h1>
+  <p style="font-size:1.4rem">QR-Code scannen &amp; Pizza bestellen!</p>
+  <div class="qr-box">{{ qr|safe }}</div>
+  <p class="muted" style="margin-top:1rem; word-break: break-all">{{ url }}</p>
+  <p class="muted">Gültig am {{ event.day.strftime('%d.%m.%Y') }}</p>
+  <button class="btn btn-primary no-print" type="button" onclick="window.print()">🖨️ Jetzt drucken</button>
+</div>
+{% endblock %}

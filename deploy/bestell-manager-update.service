@@ -1,0 +1,13 @@
+[Unit]
+Description=Bestell-Manager: auf neue Version pruefen und aktualisieren
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/bestell_manager
+ExecStart=/bin/sh /opt/bestell_manager/scripts/auto-update.sh
+# Ein Image-Build kann dauern
+TimeoutStartSec=15min

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+docker-compose.override.yml
+data/logs/*
+!data/logs/.gitkeep
+.pytest_cache/
+.claude/
+.venv*/
+backups/

@@ -1,0 +1,10 @@
+[Unit]
+Description=Bestell-Manager: alle 5 Minuten auf Updates pruefen
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

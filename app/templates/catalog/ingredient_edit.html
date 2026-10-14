@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} – Zutat bearbeiten{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1><span class="emoji">{{ item.icon }}</span> {{ item.name }}</h1>
+  <a class="btn" href="/ingredients">Zurück</a>
+</div>
+<div class="card" style="max-width: 640px">
+  <form method="post" action="/ingredients/{{ item.id }}">
+    {{ m.csrf() }}
+    <div class="form-row">
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="{{ item.name }}" required maxlength="80">
+      </div>
+      <div class="field">
+        <label for="category">Kategorie</label>
+        <select id="category" name="category">
+          {% for key, label in categories.items() %}<option value="{{ key }}" {{ 'selected' if key == item.category }}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="icon">Symbol</label>
+      {{ m.symbol_picker('icon', item.icon, symbol_groups, 'icon') }}
+    </div>
+    <div class="field" style="max-width: 200px">
+      <label for="sort_order">Reihenfolge</label>
+      <input type="number" id="sort_order" name="sort_order" value="{{ item.sort_order }}">
+    </div>
+    <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if item.active }}> Aktiv (für Gäste wählbar)</label>
+    <label class="check"><input type="checkbox" name="default_selected" value="1" {{ 'checked' if item.default_selected }}> Bei der Wunschpizza vorausgewählt</label>
+    <button class="btn btn-primary" type="submit">Speichern</button>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Anmelden – Bestell-Manager{% endblock %}
+{% block content %}
+<div style="max-width: 420px; margin: 2rem auto;">
+  <div class="card">
+    <h1>Anmelden</h1>
+    {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+      {{ m.csrf() }}
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="email">E-Mail</label>
+        <input type="email" id="email" name="email" value="{{ email }}" required autocomplete="username" autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Passwort</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Anmelden</button>
+    </form>
+  </div>
+  <p class="muted" style="text-align:center">Noch kein Konto? <a href="/register">Jetzt registrieren</a></p>
+</div>
+{% endblock %}

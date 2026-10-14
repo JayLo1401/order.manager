@@ -1,0 +1,27 @@
+{% import "_macros.html" as m with context %}
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}{{ ctx.event.title if ctx else 'Bestellung' }}{% endblock %}</title>
+  <link rel="icon" type="image/png" href="/static/img/icon-192.png">
+  {% if ctx %}<link rel="manifest" href="{{ ctx.base }}/manifest.webmanifest">{% endif %}
+  <link rel="apple-touch-icon" href="/static/img/icon-180.png">
+  <meta name="theme-color" content="#1b6b3e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Bestellung">
+  <link rel="stylesheet" href="/static/css/app.css?v=1">
+</head>
+<body class="guest">
+  <header class="guest-header">
+    <div class="logo emoji">🍕</div>
+    <h1>{% block heading %}{{ ctx.event.title if ctx else 'Pizza bestellen' }}{% endblock %}</h1>
+  </header>
+  <main class="guest-main">
+    {{ m.flashes() }}
+    {% block content %}{% endblock %}
+  </main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

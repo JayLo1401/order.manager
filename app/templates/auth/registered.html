@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Registriert – Bestell-Manager{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 520px; margin: 2rem auto; text-align:center">
+  <div style="font-size:3rem" class="emoji">⏳</div>
+  <h1>Danke, {{ name }}!</h1>
+  <p>Deine Registrierung ist eingegangen. Sobald der Administrator dein Konto freigeschaltet hat, kannst du dich anmelden.</p>
+  <a class="btn" href="/login">Zur Anmeldung</a>
+</div>
+{% endblock %}

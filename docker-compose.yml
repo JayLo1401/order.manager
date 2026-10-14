@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bestellung}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bestellung}
+      POSTGRES_DB: ${POSTGRES_DB:-bestellung}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bestellung}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-bestellung}:${POSTGRES_PASSWORD:-bestellung}@db:5432/${POSTGRES_DB:-bestellung}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme123}
+      ADMIN_NAME: ${ADMIN_NAME:-Admin}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:-}
+      GUEST_BASE_URL: ${GUEST_BASE_URL:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
+      LOG_DIR: /app/data/logs
+    volumes:
+      - ./data/logs:/app/data/logs
+    ports:
+      # Lokal: Port 8000 von ueberall erreichbar. Auf dem Server in der .env
+      # APP_BIND=127.0.0.1:8001 setzen (nur der Reverse-Proxy kommt dran),
+      # damit diese Datei unveraendert bleibt und git pull sauber durchlaeuft.
+      - "${APP_BIND:-8000}:8000"
+
+volumes:
+  postgres_data:

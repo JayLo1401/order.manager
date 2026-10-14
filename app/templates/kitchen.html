@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Küchenmonitor{% endblock %}
+{% block body_class %}kitchen{% endblock %}
+{% block content %}
+<div class="kitchen-bar">
+  <div>
+    <h1>{{ event.title if event else 'Küchenmonitor' }}{% if event and not is_today %} <span class="muted">– {{ event.day.strftime('%d.%m.%Y') }}</span>{% endif %}</h1>
+  </div>
+  <div class="kitchen-counts">
+    <span class="badge badge-primary">Neu: <b id="count-new">0</b></span>
+    <span class="badge badge-warn">In Arbeit: <b id="count-progress">0</b></span>
+    <span class="badge badge-ok">Fertig: <b id="count-done">0</b></span>
+  </div>
+  <div class="actions">
+    {% if event and is_today %}
+      <form method="post" action="/link/toggle" class="inline">
+        {{ m.csrf() }}<input type="hidden" name="next" value="/kitchen">
+        <button class="btn btn-sm" id="ordering-toggle">{{ '⏸️ Pause' if event.ordering_open else '▶️ Öffnen' }}</button>
+      </form>
+    {% endif %}
+    <button class="btn btn-sm" type="button" id="sound-toggle" title="Ton bei neuer Bestellung">🔕 Ton aus</button>
+    <button class="btn btn-sm" type="button" id="fullscreen-toggle" title="Vollbild">⛶</button>
+    <span class="clock" id="clock"></span>
+    <span class="conn-dot" id="conn" title="Verbindung"></span>
+  </div>
+</div>
+
+{% if not event %}
+  <div class="empty">
+    <div class="big emoji">🍕</div>
+    <p>Für heute gibt es noch keinen Bestell-Link.</p>
+    <form method="post" action="/link/create">
+      {{ m.csrf() }}
+      <button class="btn btn-primary btn-lg" type="submit">Bestell-Link für heute erstellen</button>
+    </form>
+  </div>
+{% else %}
+  <div id="tiles-open" class="tiles"></div>
+  <div id="empty-open" class="empty" hidden><div class="big emoji">😴</div>Keine offenen Bestellungen.</div>
+
+  <h2 class="section-title">
+    <button class="btn btn-sm" type="button" id="done-toggle">Fertige anzeigen</button>
+  </h2>
+  <div id="tiles-done" class="tiles" hidden></div>
+{% endif %}
+
+<div class="modal-backdrop" id="modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-head">
+      <div>
+        <div class="muted" id="modal-number"></div>
+        <h2 id="modal-title"></h2>
+        <div id="modal-guest" style="font-size:1.15rem;font-weight:600"></div>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close aria-label="Schließen" style="font-size:1.4rem">✕</button>
+    </div>
+    <div class="ing-list emoji-mixed" id="modal-ingredients"></div>
+    <div class="tile-note" id="modal-note" hidden></div>
+    <p class="muted small" id="modal-meta"></p>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+  <script>
+    window.KITCHEN = {
+      apiUrl: "/kitchen/api/orders{{ '?event_id=%d' % event.id if event and not is_today else '' }}",
+      csrf: "{{ csrf_token() }}",
+      readOnly: {{ 'false' if is_today else 'true' }}
+    };
+  </script>
+  {% if event %}<script src="/static/js/kitchen.js?v=1"></script>{% endif %}
+{% endblock %}

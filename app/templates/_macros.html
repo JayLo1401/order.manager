@@ -1,0 +1,24 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro symbol_picker(name, value, groups, id) %}
+<div class="symbol-field">
+  <input type="text" name="{{ name }}" id="{{ id }}" value="{{ value }}" class="icon-input emoji" maxlength="16" placeholder="🍕">
+  <details class="symbol-picker">
+    <summary>Symbol aus Bibliothek wählen</summary>
+    {% for title, symbols in groups %}
+      <div class="symbol-group">
+        <div class="symbol-group-title">{{ title }}</div>
+        <div class="symbol-grid emoji">
+          {% for s in symbols %}<button type="button" data-symbol-target="{{ id }}" data-symbol="{{ s }}" class="{{ 'selected' if s == value }}">{{ s }}</button>{% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </details>
+</div>
+{% endmacro %}
+
+{% macro flashes() %}
+  {% for f in get_flashed() %}
+    <div class="flash flash-{{ f.category }}">{{ f.message }}</div>
+  {% endfor %}
+{% endmacro %}
