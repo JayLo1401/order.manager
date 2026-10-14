@@ -62,6 +62,22 @@ def can_order_more(db: Session, guest: Guest, host_settings: HostSettings) -> bo
     return limit == 0 or active_order_count(db, guest) < limit + guest.extra_orders
 
 
+def available_today(product: Product, event: Event) -> bool:
+    """Aktiv, alle Zutaten aktiv und keine davon heute ausgegangen."""
+    sold_out = event.sold_out_ids
+    return product.available and not any(i.id in sold_out for i in product.ingredients)
+
+
+def set_sold_out(event: Event, ingredient_id: int, sold_out: bool) -> None:
+    ids = event.sold_out_ids
+    if sold_out:
+        ids.add(ingredient_id)
+    else:
+        ids.discard(ingredient_id)
+    # Neue Liste zuweisen, damit SQLAlchemy die Aenderung an der JSON-Spalte erkennt
+    event.sold_out_ingredient_ids = sorted(ids)
+
+
 def options_for(db: Session, event: Event) -> list[ProductOption]:
     """Alle aktiven Optionen des Gastgebers fuer diesen Bestelltag."""
     return list(db.scalars(
@@ -134,6 +150,10 @@ def place_order(
         item_name, item_icon, is_custom = "Wunschpizza", "✨", True
         product_id = None
         options = validate_options(db, event, None, option_ids or [])
+
+    sold_out = [i.name for i in ingredients if i.id in event.sold_out_ids]
+    if sold_out:
+        raise OrderError(f"Leider heute aus: {', '.join(sold_out)}. Bitte wähle etwas anderes.")
 
     # Event-Zeile sperren, damit parallele Bestellungen keine doppelte Nummer
     # bekommen (unter SQLite in den Tests ein No-Op).

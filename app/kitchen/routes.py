@@ -6,12 +6,14 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.auth.dependencies import require_login, require_login_api, verify_csrf_header
 from app.catalog.defaults import ensure_host_settings
+from app.catalog.routes import group_by_category
+from app.models.catalog import Ingredient
 from app.database import get_db
 from app.events.service import today_event
 from app.models.event import Event, Guest, Order
 from app.models.push import PushSubscription
 from app.models.user import User
-from app.orders.service import OrderError, change_extra_orders, change_status, order_to_dict
+from app.orders.service import OrderError, change_extra_orders, change_status, order_to_dict, set_sold_out
 from app.templating import templates
 
 router = APIRouter(prefix="/kitchen")
@@ -55,9 +57,48 @@ def orders_api(event_id: int | None = None, db: Session = Depends(get_db), user:
             "ordering_open": event.ordering_open,
             # Bei unbegrenzten Bestellungen ist "Nachschlag" sinnlos
             "order_limit": host_settings.max_orders_per_guest,
+            "sold_out_count": len(event.sold_out_ids),
         },
         "orders": [order_to_dict(o) for o in orders],
     }
+
+
+@router.get("/api/ingredients")
+def ingredients_api(db: Session = Depends(get_db), user: User = Depends(require_login_api)):
+    """Aktive Zutaten mit "heute aus"-Status, gruppiert wie in der Verwaltung."""
+    event = today_event(db, user)
+    if event is None:
+        return {"groups": []}
+    ingredients = list(db.scalars(
+        select(Ingredient)
+        .where(Ingredient.owner_id == user.id, Ingredient.kind == event.kind, Ingredient.active.is_(True))
+        .order_by(Ingredient.sort_order, Ingredient.name)
+    ))
+    sold_out = event.sold_out_ids
+    return {"groups": [
+        {"label": label, "items": [
+            {"id": i.id, "name": i.name, "icon": i.icon, "sold_out": i.id in sold_out} for i in items
+        ]}
+        for _, label, items in group_by_category(ingredients)
+    ]}
+
+
+@router.post("/api/ingredients/{ingredient_id}/sold-out", dependencies=[Depends(verify_csrf_header)])
+def set_ingredient_sold_out(
+    ingredient_id: int,
+    sold_out: bool = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login_api),
+):
+    event = today_event(db, user)
+    if event is None:
+        raise HTTPException(status_code=409, detail="Für heute gibt es noch keinen Bestelltag.")
+    ingredient = db.get(Ingredient, ingredient_id)
+    if ingredient is None or ingredient.owner_id != user.id:
+        raise HTTPException(status_code=404)
+    set_sold_out(event, ingredient.id, sold_out)
+    db.commit()
+    return {"id": ingredient.id, "sold_out": sold_out, "sold_out_count": len(event.sold_out_ids)}
 
 
 @router.delete("/api/guests/{guest_id}", dependencies=[Depends(verify_csrf_header)])

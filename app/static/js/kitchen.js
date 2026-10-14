@@ -76,6 +76,7 @@
       const data = await res.json();
       orders = data.orders;
       eventInfo = data.event || {};
+      updateSoldOutBadge(eventInfo.sold_out_count || 0);
       $("#conn").classList.remove("offline");
       render();
     } catch (e) {
@@ -215,6 +216,67 @@
     load();
   }
 
+  // ---------------------------------------------------------------- Zutaten "heute aus"
+  const stockModal = $("#stock-modal");
+
+  function updateSoldOutBadge(count) {
+    const badge = $("#soldout-count");
+    if (!badge) return;
+    badge.hidden = !count;
+    badge.textContent = `${count} aus`;
+  }
+
+  async function openStock() {
+    stockModal.hidden = false;
+    try {
+      const res = await fetch("/kitchen/api/ingredients", { cache: "no-store" });
+      const data = await res.json();
+      $("#stock-groups").innerHTML = data.groups.map((g) => `
+        <h3 class="section-title">${esc(g.label)}</h3>
+        <div class="stock-grid">
+          ${g.items.map((i) => `
+            <button type="button" class="stock-tile${i.sold_out ? " is-out" : ""}" data-ingredient="${i.id}"
+                    aria-pressed="${i.sold_out}">
+              <span class="emoji">${esc(i.icon)}</span>
+              <span class="stock-name">${esc(i.name)}</span>
+              <span class="stock-state">${i.sold_out ? "heute aus" : "da"}</span>
+            </button>`).join("")}
+        </div>`).join("") || '<p class="muted">Keine aktiven Zutaten.</p>';
+    } catch (e) {
+      $("#stock-groups").innerHTML = '<p class="muted">Konnte die Zutaten nicht laden.</p>';
+    }
+  }
+
+  async function toggleStock(tile) {
+    const soldOut = !tile.classList.contains("is-out");
+    tile.disabled = true;
+    try {
+      const res = await fetch(`/kitchen/api/ingredients/${tile.dataset.ingredient}/sold-out`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": cfg.csrf },
+        body: JSON.stringify({ sold_out: soldOut }),
+      });
+      if (!res.ok) throw new Error(res.status);
+      const data = await res.json();
+      tile.classList.toggle("is-out", soldOut);
+      tile.setAttribute("aria-pressed", String(soldOut));
+      tile.querySelector(".stock-state").textContent = soldOut ? "heute aus" : "da";
+      updateSoldOutBadge(data.sold_out_count);
+    } catch (e) {
+      alert("Konnte nicht gespeichert werden.");
+    }
+    tile.disabled = false;
+  }
+
+  if (stockModal) {
+    $("#stock-open")?.addEventListener("click", openStock);
+    stockModal.addEventListener("click", (ev) => {
+      const tile = ev.target.closest("[data-ingredient]");
+      if (tile) { toggleStock(tile); return; }
+      if (ev.target === stockModal || ev.target.closest("[data-close-stock]")) stockModal.hidden = true;
+    });
+  }
+
   // ---------------------------------------------------------------- Ton
   function beep() {
     if (!audioCtx) return;
@@ -257,7 +319,11 @@
     if (tile) { openModal(Number(tile.dataset.id)); return; }
     if (ev.target.closest("[data-close]") || ev.target === $("#modal")) closeModal();
   });
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") closeModal(); });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    closeModal();
+    if (stockModal) stockModal.hidden = true;
+  });
 
   $("#done-toggle").addEventListener("click", () => {
     showDone = !showDone;
@@ -265,10 +331,24 @@
     render();
   });
   $("#sound-toggle").addEventListener("click", () => setSound(!soundOn));
+  // Vollbild: Kopfzeile ausblenden, damit mehr Platz fuer die Kacheln bleibt.
+  // webkit-Varianten fuer Safari auf dem iPad.
+  const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement;
   $("#fullscreen-toggle").addEventListener("click", () => {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else document.documentElement.requestFullscreen?.();
+    const root = document.documentElement;
+    if (fullscreenElement()) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    } else {
+      (root.requestFullscreen || root.webkitRequestFullscreen)?.call(root);
+    }
   });
+  const onFullscreenChange = () => {
+    const on = !!fullscreenElement();
+    document.body.classList.toggle("is-fullscreen", on);
+    $("#fullscreen-toggle").textContent = on ? "⤢ Vollbild beenden" : "⛶";
+  };
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") { keepAwake(); load(); }
   });

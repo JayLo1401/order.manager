@@ -45,7 +45,7 @@
           {% set tags = [] %}
           {% if i.vegetarian %}{% set _ = tags.append('🌱 vegetarisch') %}{% else %}{% set _ = tags.append('nicht vegetarisch') %}{% endif %}
           {% if i.default_selected %}{% set _ = tags.append('vorausgewählt') %}{% endif %}
-          <small>{{ tags|join(' · ') }}</small>
+          <small>{{ tags|join(' · ') }}{% if i.id in sold_out %} · <b style="color:var(--danger)">heute aus</b> (Küchenmonitor){% endif %}</small>
         </span>
         <form method="post" action="/ingredients/{{ i.id }}/toggle" class="inline">
           {{ m.csrf() }}

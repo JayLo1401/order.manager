@@ -21,7 +21,9 @@
     const update = () => {
       const checked = boxes.filter((b) => b.checked);
       const n = checked.length;
-      boxes.forEach((b) => { b.disabled = max > 0 && n >= max && !b.checked; });
+      boxes.forEach((b) => {
+        b.disabled = b.dataset.soldOut === "1" || (max > 0 && n >= max && !b.checked);
+      });
       const vegetarian = n > 0 && checked.every((b) => b.dataset.vegetarian === "1");
       $("#custom-submit").disabled = n === 0;
       $("#custom-summary").textContent = n === 0

@@ -27,9 +27,17 @@ class Event(Base):
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(120), default="")
     ordering_open: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Zutaten, die heute ausgegangen sind (im Kuechenmonitor gesetzt). Haengt am
+    # Bestelltag, damit am naechsten Tag automatisch wieder alles verfuegbar ist.
+    # Beim Aendern immer eine neue Liste zuweisen (sonst erkennt SQLAlchemy es nicht).
+    sold_out_ingredient_ids: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     orders: Mapped[list["Order"]] = relationship(back_populates="event", cascade="all, delete-orphan")
+
+    @property
+    def sold_out_ids(self) -> set[int]:
+        return set(self.sold_out_ingredient_ids or [])
 
 
 class Guest(Base):

@@ -7,6 +7,7 @@ from app.auth.dependencies import require_login, verify_csrf, verify_csrf_header
 from app.catalog.defaults import add_missing_default_ingredients
 from app.catalog.symbols import SYMBOL_GROUPS
 from app.database import get_db
+from app.events.service import today_event
 from app.models.catalog import INGREDIENT_CATEGORIES, OPTION_GROUPS, Ingredient, Product, ProductOption
 from app.models.user import User
 from app.templating import flash, templates
@@ -48,7 +49,9 @@ def _next_sort_order(db: Session, model, user: User) -> int:
 @router.get("/ingredients")
 def ingredients(request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)):
     items = _ingredients(db, user)
+    event = today_event(db, user)
     return templates.TemplateResponse(request, "catalog/ingredients.html", {
+        "sold_out": event.sold_out_ids if event else set(),
         "groups": group_by_category(items),
         "count": len(items),
         "active_count": sum(1 for i in items if i.active),

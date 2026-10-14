@@ -14,9 +14,11 @@
       <h2 class="section-title">{{ label }}</h2>
       <div class="ing-grid">
         {% for i in items %}
-          <label class="ing-tile" data-veg-item="{{ 1 if i.vegetarian else 0 }}">
-            <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" data-vegetarian="{{ 1 if i.vegetarian else 0 }}" {{ 'checked' if i.default_selected }}>
-            <span><b class="emoji">{{ i.icon }}</b>{{ i.name }}</span>
+          {% set out = i.id in sold_out %}
+          <label class="ing-tile {{ 'sold-out' if out }}" data-veg-item="{{ 1 if i.vegetarian else 0 }}">
+            <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" data-vegetarian="{{ 1 if i.vegetarian else 0 }}"
+                   {% if out %}disabled data-sold-out="1"{% elif i.default_selected %}checked{% endif %}>
+            <span><b class="emoji">{{ i.icon }}</b>{{ i.name }}{% if out %}<small class="sold-out-label">heute aus</small>{% endif %}</span>
           </label>
         {% endfor %}
       </div>
@@ -39,4 +41,4 @@
   {% include "guest/_options_sheet.html" %}
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=6"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=7"></script>{% endblock %}

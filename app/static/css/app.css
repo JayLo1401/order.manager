@@ -227,6 +227,22 @@ body.sorting, body.sorting * { cursor: grabbing !important; user-select: none; -
 /* ------------------------------------------------------------ Kuechenmonitor */
 body.kitchen .container { max-width: none; padding: .75rem; }
 body.kitchen .site-footer { display: none; }
+body.is-fullscreen .site-header { display: none; }
+
+.modal-wide { width: min(900px, 100%); }
+.stock-grid { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.stock-tile {
+  display: flex; align-items: center; gap: .5rem; min-height: 56px; padding: .5rem .65rem;
+  font: inherit; color: var(--text); text-align: left; cursor: pointer;
+  background: var(--surface); border: 2px solid var(--ok); border-radius: 12px;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+.stock-tile .emoji { font-size: 1.5rem; }
+.stock-name { flex: 1; min-width: 0; font-weight: 600; }
+.stock-state { font-size: .7rem; font-weight: 700; text-transform: uppercase; color: var(--ok); }
+.stock-tile.is-out { border-color: var(--danger); background: var(--danger-soft); }
+.stock-tile.is-out .stock-name { text-decoration: line-through; opacity: .7; }
+.stock-tile.is-out .stock-state { color: var(--danger); }
 .kitchen-bar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
 .kitchen-bar h1 { font-size: 1.3rem; margin: 0; }
 .kitchen-counts { display: flex; gap: .5rem; flex-wrap: wrap; }
@@ -337,6 +353,11 @@ body.guest { background: var(--bg); }
 .ing-tile input:checked + span { border-color: var(--primary); background: var(--primary-soft); }
 .ing-tile input:checked + span::after { content: "✓"; margin-left: auto; color: var(--primary); font-weight: 800; }
 .ing-tile input:disabled + span { opacity: .45; }
+.ing-tile.sold-out span { text-decoration: line-through; }
+.sold-out-label {
+  margin-left: auto; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  color: var(--danger); text-decoration: none; display: inline-block;
+}
 
 .order-bar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;

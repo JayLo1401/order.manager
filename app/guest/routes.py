@@ -15,6 +15,7 @@ from app.models.push import PushSubscription
 from app.models.settings import HostSettings
 from app.orders.service import (
     OrderError,
+    available_today,
     can_order_more,
     change_status,
     options_for,
@@ -127,7 +128,7 @@ def menu(request: Request, ctx: GuestContext = Depends(require_guest), db: Sessi
             select(Product)
             .where(Product.owner_id == ctx.event.owner_id, Product.kind == ctx.event.kind, Product.active.is_(True))
             .order_by(Product.sort_order, Product.name)
-        ) if p.available]
+        ) if available_today(p, ctx.event)]
     if not products and ctx.settings.allow_custom:
         return RedirectResponse(f"{ctx.base}/custom", status_code=303)
     options = options_for(db, ctx.event)
@@ -149,7 +150,8 @@ def custom(request: Request, ctx: GuestContext = Depends(require_guest), db: Ses
         .order_by(Ingredient.sort_order, Ingredient.name)
     ))
     options = [o for o in options_for(db, ctx.event) if o.available_for(None)]
-    return _render(request, "custom.html", ctx, groups=group_by_category(ingredients), options=options)
+    return _render(request, "custom.html", ctx, groups=group_by_category(ingredients), options=options,
+                   sold_out=ctx.event.sold_out_ids)
 
 
 @router.post("/order", dependencies=[Depends(verify_csrf)])
