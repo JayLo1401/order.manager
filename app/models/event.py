@@ -39,6 +39,9 @@ class Guest(Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(80), default="")
     table_no: Mapped[str] = mapped_column(String(20), default="")
+    # Zusaetzlich zum Limit aus den Einstellungen freigegebene Bestellungen
+    # ("Nachschlag", vergeben im Kuechenmonitor)
+    extra_orders: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     @property

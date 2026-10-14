@@ -88,6 +88,56 @@ def test_guest_orders_preset_and_kitchen_completes(client, db_session, admin):
     assert client.post(f"/kitchen/api/orders/{order['id']}/status", json={"status": "in_progress"}).status_code == 400
 
 
+def test_kitchen_grants_extra_order(client, db_session, admin):
+    event = _create_link(client, db_session, admin)
+    guest = _guest(client)
+    _join(guest, event)
+    product = db_session.scalar(select(Product).where(Product.owner_id == admin.id))
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+    guest.post(f"/o/{event.token}/order", data={"product_id": product.id, "csrf_token": token})
+    assert guest.get(f"/o/{event.token}/api/status").json()["can_order_more"] is False
+
+    order = client.get("/kitchen/api/orders").json()["orders"][0]
+    assert client.get("/kitchen/api/orders").json()["event"]["order_limit"] == 1
+    headers = {"X-CSRF-Token": csrf_from(client, "/kitchen")}
+    response = client.post(f"/kitchen/api/guests/{order['guest_id']}/extra", json={"delta": 1}, headers=headers)
+    assert response.json()["extra_orders"] == 1
+
+    assert guest.get(f"/o/{event.token}/api/status").json()["can_order_more"] is True
+    assert "Nachschlag" in guest.get(f"/o/{event.token}/status").text
+    guest.post(f"/o/{event.token}/order", data={"product_id": product.id, "csrf_token": token})
+    assert len(db_session.scalars(select(Order)).all()) == 2
+    # Nachschlag verbraucht -> wieder gesperrt
+    assert guest.get(f"/o/{event.token}/api/status").json()["can_order_more"] is False
+
+    # Zuruecknehmen geht nicht unter 0
+    client.post(f"/kitchen/api/guests/{order['guest_id']}/extra", json={"delta": -1}, headers=headers)
+    response = client.post(f"/kitchen/api/guests/{order['guest_id']}/extra", json={"delta": -1}, headers=headers)
+    assert response.json()["extra_orders"] == 0
+
+
+def test_extra_order_only_for_own_guests(client, db_session, admin):
+    from app.auth.security import hash_password
+    from app.catalog.defaults import seed_catalog
+    from app.models.event import Guest
+    from app.models.user import User
+
+    event = _create_link(client, db_session, admin)
+    _join(_guest(client), event)
+    guest_id = db_session.scalar(select(Guest.id))
+
+    other = User(email="kollege@test.at", name="K", password_hash=hash_password("geheim123"), status="approved")
+    db_session.add(other)
+    db_session.flush()
+    seed_catalog(db_session, other.id)
+    db_session.commit()
+    colleague = _guest(client)
+    login(colleague, "kollege@test.at", "geheim123")
+    headers = {"X-CSRF-Token": csrf_from(colleague, "/kitchen")}
+    response = colleague.post(f"/kitchen/api/guests/{guest_id}/extra", json={"delta": 1}, headers=headers)
+    assert response.status_code == 404
+
+
 def test_custom_pizza_respects_limits_and_inactive(client, db_session, admin):
     host_settings = db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id))
     host_settings.max_custom_ingredients = 2

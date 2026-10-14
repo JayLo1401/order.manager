@@ -273,6 +273,12 @@ body.kitchen .site-footer { display: none; }
 .modal .ing-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .4rem; margin: 1rem 0; }
 .modal .ing-list div { background: var(--surface-2); border-radius: 10px; padding: .45rem .6rem; font-size: 1.05rem; }
 .modal-actions { display: grid; gap: .6rem; margin-top: 1rem; }
+.modal-extra { margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); display: grid; gap: .5rem; }
+.extra-hint {
+  text-align: center; padding: 1rem; border-radius: var(--radius); margin-bottom: 1rem;
+  background: var(--primary-soft); border: 1px solid var(--primary);
+}
+.extra-hint .big { font-size: 2.4rem; line-height: 1; }
 
 /* ------------------------------------------------------------ Gaeste */
 body.guest { background: var(--bg); }

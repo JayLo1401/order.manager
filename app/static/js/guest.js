@@ -75,6 +75,14 @@
             if (o.status === "done" && known[o.id] !== undefined) await localNotify(o);
           }
         }
+        const couldOrder = ordersEl.dataset.canOrder === "1";
+        if (data.can_order_more && !couldOrder) {
+          // Nachschlag aus der Kueche freigegeben
+          if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
+          changed = true;
+        } else if (data.can_order_more !== couldOrder) {
+          changed = true;
+        }
         if (changed || data.orders.length !== Object.keys(known).length) {
           location.replace(location.pathname); // ohne ?ok=1
           return;

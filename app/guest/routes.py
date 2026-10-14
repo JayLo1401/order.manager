@@ -175,6 +175,7 @@ def status_page(
 def status_api(ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)):
     return {
         "ordering_open": ctx.event.ordering_open,
+        "can_order_more": ctx.event.ordering_open and can_order_more(db, ctx.guest, ctx.settings),
         "orders": [order_to_dict(o) for o in _my_orders(db, ctx.guest)],
     }
 

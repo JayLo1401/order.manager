@@ -5,11 +5,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth.dependencies import require_login, require_login_api, verify_csrf_header
+from app.catalog.defaults import ensure_host_settings
 from app.database import get_db
 from app.events.service import today_event
-from app.models.event import Event, Order
+from app.models.event import Event, Guest, Order
 from app.models.user import User
-from app.orders.service import OrderError, change_status, order_to_dict
+from app.orders.service import OrderError, change_extra_orders, change_status, order_to_dict
 from app.templating import templates
 
 router = APIRouter(prefix="/kitchen")
@@ -45,10 +46,36 @@ def orders_api(event_id: int | None = None, db: Session = Depends(get_db), user:
         .options(selectinload(Order.guest))
         .order_by(Order.number)
     ).all()
+    host_settings = ensure_host_settings(db, user.id)
     return {
-        "event": {"id": event.id, "title": event.title, "ordering_open": event.ordering_open},
+        "event": {
+            "id": event.id,
+            "title": event.title,
+            "ordering_open": event.ordering_open,
+            # Bei unbegrenzten Bestellungen ist "Nachschlag" sinnlos
+            "order_limit": host_settings.max_orders_per_guest,
+        },
         "orders": [order_to_dict(o) for o in orders],
     }
+
+
+@router.post("/api/guests/{guest_id}/extra", dependencies=[Depends(verify_csrf_header)])
+def set_guest_extra(
+    guest_id: int,
+    background: BackgroundTasks,
+    delta: int = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login_api),
+):
+    guest = db.get(Guest, guest_id)
+    event = db.get(Event, guest.event_id) if guest else None
+    if guest is None or event is None or event.owner_id != user.id:
+        raise HTTPException(status_code=404)
+    if delta not in (1, -1):
+        raise HTTPException(status_code=400)
+    change_extra_orders(db, guest, event, delta, background)
+    db.commit()
+    return {"guest_id": guest.id, "extra_orders": guest.extra_orders}
 
 
 @router.post("/api/orders/{order_id}/status", dependencies=[Depends(verify_csrf_header)])

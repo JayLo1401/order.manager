@@ -6,6 +6,7 @@
   const $ = (sel) => document.querySelector(sel);
 
   let orders = [];
+  let eventInfo = {};
   let knownIds = null; // null = erster Ladevorgang, dann kein Ton
   let showDone = false;
   let soundOn = false;
@@ -31,7 +32,7 @@
           <span class="tile-number">#${o.number}</span>
           <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
         </div>
-        <div class="tile-guest">${esc(o.guest || "Gast")}</div>
+        <div class="tile-guest">${esc(o.guest || "Gast")}${o.guest_extra_orders ? ` <span title="Nachschlag freigegeben">🎁${o.guest_extra_orders > 1 ? o.guest_extra_orders : ""}</span>` : ""}</div>
         <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}${o.vegetarian ? ' <span class="badge badge-veg">🌱</span>' : ""}</div>
         <div class="tile-icons emoji">${esc(icons)}</div>
         ${o.note ? `<div class="tile-note">💬 ${esc(o.note)}</div>` : ""}
@@ -71,6 +72,7 @@
       if (!res.ok) throw new Error(res.status);
       const data = await res.json();
       orders = data.orders;
+      eventInfo = data.event || {};
       $("#conn").classList.remove("offline");
       render();
     } catch (e) {
@@ -115,6 +117,35 @@
         setStatus(o.id, a.status, btn);
       });
     });
+
+    // Nachschlag: nur sinnvoll, wenn es ein Bestell-Limit gibt
+    const showExtra = !cfg.readOnly && eventInfo.order_limit > 0;
+    $("#modal-extra").hidden = !showExtra;
+    if (showExtra) {
+      const extra = o.guest_extra_orders || 0;
+      $("#modal-extra-info").textContent = extra
+        ? `Nachschlag für ${o.guest || "diesen Gast"}: ${extra} zusätzliche Pizza${extra > 1 ? "s" : ""} freigegeben.`
+        : `Pizza übrig? ${o.guest || "Dieser Gast"} darf dann noch eine bestellen.`;
+      $("#extra-revoke").hidden = extra === 0;
+      $("#extra-grant").onclick = (ev) => setExtra(o.guest_id, 1, ev.currentTarget);
+      $("#extra-revoke").onclick = (ev) => setExtra(o.guest_id, -1, ev.currentTarget);
+    }
+  }
+
+  async function setExtra(guestId, delta, btn) {
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/kitchen/api/guests/${guestId}/extra`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": cfg.csrf },
+        body: JSON.stringify({ delta }),
+      });
+      if (!res.ok) alert("Aktion fehlgeschlagen.");
+    } catch (e) {
+      alert("Keine Verbindung zum Server.");
+    }
+    btn.disabled = false;
+    load(); // Modal bleibt offen und zeigt den neuen Stand
   }
 
   function openModal(id) {

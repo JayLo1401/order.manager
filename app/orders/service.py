@@ -41,6 +41,8 @@ def order_to_dict(order: Order) -> dict:
         "ingredients": order.ingredients or [],
         "note": order.note,
         "guest": order.guest.label if order.guest else "",
+        "guest_id": order.guest_id,
+        "guest_extra_orders": order.guest.extra_orders if order.guest else 0,
         "guest_name": order.guest.name if order.guest else "",
         "table_no": order.guest.table_no if order.guest else "",
         "created_at": created.isoformat() if created else None,
@@ -56,7 +58,7 @@ def active_order_count(db: Session, guest: Guest) -> int:
 
 def can_order_more(db: Session, guest: Guest, host_settings: HostSettings) -> bool:
     limit = host_settings.max_orders_per_guest
-    return limit == 0 or active_order_count(db, guest) < limit
+    return limit == 0 or active_order_count(db, guest) < limit + guest.extra_orders
 
 
 def place_order(
@@ -121,6 +123,22 @@ def place_order(
     db.add(order)
     db.flush()
     return order
+
+
+def change_extra_orders(db: Session, guest: Guest, event: Event, delta: int, background: BackgroundTasks | None) -> None:
+    """Nachschlag freigeben (+1) oder zuruecknehmen (-1)."""
+    guest.extra_orders = max(0, guest.extra_orders + delta)
+    db.flush()
+    if background is not None and delta > 0:
+        subscriptions = collect_subscriptions(db, guest.id)
+        if subscriptions:
+            payload = {
+                "title": "Nachschlag! 🍕",
+                "body": "Es ist noch Pizza übrig – du darfst noch eine bestellen.",
+                "url": f"/o/{event.token}/menu",
+                "tag": f"extra-{guest.id}",
+            }
+            background.add_task(send_push, subscriptions, get_vapid_keys(db).vapid_private_pem, payload)
 
 
 def change_status(db: Session, order: Order, new_status: str, background: BackgroundTasks | None) -> None:

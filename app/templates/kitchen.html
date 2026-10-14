@@ -58,6 +58,13 @@
     <div class="tile-note" id="modal-note" hidden></div>
     <p class="muted small" id="modal-meta"></p>
     <div class="modal-actions" id="modal-actions"></div>
+    <div class="modal-extra" id="modal-extra" hidden>
+      <div class="muted small" id="modal-extra-info"></div>
+      <div class="actions">
+        <button type="button" class="btn btn-primary" id="extra-grant">🎁 Noch eine Pizza erlauben</button>
+        <button type="button" class="btn btn-sm" id="extra-revoke" hidden>Freigabe zurücknehmen</button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -69,5 +76,5 @@
       readOnly: {{ 'false' if is_today else 'true' }}
     };
   </script>
-  {% if event %}<script src="/static/js/kitchen.js?v=2"></script>{% endif %}
+  {% if event %}<script src="/static/js/kitchen.js?v=3"></script>{% endif %}
 {% endblock %}

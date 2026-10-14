@@ -12,7 +12,16 @@
 
 <p class="guest-who">{{ ctx.guest.label }}</p>
 
-<div id="orders" data-status-url="{{ ctx.base }}/api/status">
+{% if can_order_more and ctx.guest.extra_orders and orders %}
+  <div class="extra-hint">
+    <div class="big emoji">🎁</div>
+    <h2 style="margin:.3rem 0">Nachschlag!</h2>
+    <p>Es ist noch Pizza übrig – du darfst noch eine bestellen.</p>
+    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt noch eine Pizza bestellen</a>
+  </div>
+{% endif %}
+
+<div id="orders" data-status-url="{{ ctx.base }}/api/status" data-can-order="{{ 1 if can_order_more else 0 }}">
 {% for o in orders %}
   <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}">
     <div class="order-no">Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
@@ -61,11 +70,11 @@
 </div>
 {% endif %}
 
-{% if can_order_more %}
+{% if can_order_more and not (ctx.guest.extra_orders and orders) %}
   <a class="btn btn-block" href="{{ ctx.base }}/menu">+ Weitere Pizza bestellen</a>
 {% elif not ctx.event.ordering_open %}
   <p class="muted" style="text-align:center">Bestellungen sind gerade pausiert.</p>
 {% endif %}
 <p class="muted small" style="text-align:center;margin-top:1rem">Diese Seite aktualisiert sich automatisch.</p>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=2"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=3"></script>{% endblock %}
