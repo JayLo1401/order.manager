@@ -193,6 +193,16 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1
 .switch.on span { background: var(--ok); }
 .switch.on span::after { transform: translateX(20px); }
 
+/* ------------------------------------------------------------ Drag & Drop */
+.drag-handle {
+  background: none; border: 0; color: var(--muted); font-size: 1.5rem; line-height: 1;
+  padding: .3rem .35rem; border-radius: 6px; cursor: grab; touch-action: none;
+}
+.drag-handle:hover { background: var(--surface-2); color: var(--text); }
+.dragging { opacity: .6; outline: 2px dashed var(--primary); outline-offset: 2px; }
+body.sorting, body.sorting * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.sort-status { margin-left: .5rem; color: var(--ok); font-weight: 600; }
+
 /* ------------------------------------------------------------ Symbolbibliothek */
 .symbol-picker summary { cursor: pointer; color: var(--primary); font-weight: 600; margin: .3rem 0; }
 .symbol-group { margin: .4rem 0; }

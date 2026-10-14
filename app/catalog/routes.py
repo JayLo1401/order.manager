@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import require_login, verify_csrf
+from app.auth.dependencies import require_login, verify_csrf, verify_csrf_header
 from app.catalog.defaults import add_missing_default_ingredients
 from app.catalog.symbols import SYMBOL_GROUPS
 from app.database import get_db
@@ -153,6 +153,19 @@ def pizzas(request: Request, db: Session = Depends(get_db), user: User = Depends
     return templates.TemplateResponse(request, "catalog/pizzas.html", {"items": items})
 
 
+@router.post("/pizzas/reorder", dependencies=[Depends(verify_csrf_header)])
+def reorder_pizzas(ids: list[int] = Body(..., embed=True), db: Session = Depends(get_db), user: User = Depends(require_login)):
+    """Neue Reihenfolge per Drag & Drop. Muss vor /pizzas/{item_id} stehen."""
+    items = {p.id: p for p in db.scalars(
+        select(Product).where(Product.owner_id == user.id, Product.id.in_(ids or [0]))
+    )}
+    for index, item_id in enumerate(ids):
+        if item_id in items:
+            items[item_id].sort_order = (index + 1) * 10
+    db.commit()
+    return {"ok": True}
+
+
 def _pizza_form(request: Request, db: Session, user: User, item: Product | None):
     return templates.TemplateResponse(request, "catalog/pizza_edit.html", {
         "item": item,
@@ -213,7 +226,6 @@ def update_pizza(
     description: str = Form(""),
     ingredient_ids: list[int] = Form(default=[]),
     active: bool = Form(False),
-    sort_order: int = Form(0),
     db: Session = Depends(get_db),
     user: User = Depends(require_login),
 ):
@@ -221,7 +233,6 @@ def update_pizza(
     if not name.strip():
         name = item.name
     _apply_pizza_form(db, user, item, name, icon, description, ingredient_ids, active)
-    item.sort_order = sort_order
     db.commit()
     flash(request, f"Pizza „{item.name}“ gespeichert.")
     return RedirectResponse("/pizzas", status_code=303)

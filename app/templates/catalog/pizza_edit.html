@@ -23,12 +23,6 @@
       <label for="icon">Symbol</label>
       {{ m.symbol_picker('icon', item.icon if item else '🍕', symbol_groups, 'icon') }}
     </div>
-    {% if item %}
-    <div class="field" style="max-width: 200px">
-      <label for="sort_order">Reihenfolge</label>
-      <input type="number" id="sort_order" name="sort_order" value="{{ item.sort_order }}">
-    </div>
-    {% endif %}
     <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if not item or item.active }}> Aktiv (Gäste können sie bestellen)</label>
   </div>
 

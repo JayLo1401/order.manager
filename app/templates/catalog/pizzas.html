@@ -7,11 +7,18 @@
 </div>
 
 {% if items %}
-<div class="grid-2">
+<p class="muted small">
+  Zum Sortieren am <span aria-hidden="true">⠿</span> ziehen – in dieser Reihenfolge sehen sie auch die Gäste.
+  <span class="sort-status" data-sortable-status></span>
+</p>
+<div class="grid-2" data-sortable data-sortable-url="/pizzas/reorder" data-csrf="{{ csrf_token() }}">
   {% for p in items %}
-    <div class="card" id="pizza-{{ p.id }}" style="{{ '' if p.active else 'opacity:.6' }}">
+    <div class="card" id="pizza-{{ p.id }}" data-sortable-id="{{ p.id }}" style="{{ '' if p.active else 'opacity:.6' }}">
       <div class="page-head" style="margin-bottom:.5rem">
-        <h2 style="margin:0"><span class="emoji">{{ p.icon }}</span> {{ p.name }}</h2>
+        <h2 style="margin:0; display:flex; align-items:center; gap:.4rem">
+          <button type="button" class="drag-handle" data-sortable-handle title="Ziehen zum Sortieren" aria-label="{{ p.name }} verschieben">⠿</button>
+          <span class="emoji">{{ p.icon }}</span> {{ p.name }}
+        </h2>
         <form method="post" action="/pizzas/{{ p.id }}/toggle" class="inline">
           {{ m.csrf() }}
           <button class="switch {{ 'on' if p.active }}" title="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}" aria-label="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}"><span></span></button>
@@ -39,3 +46,4 @@
   <div class="empty"><div class="big emoji">🍕</div>Noch keine Pizzen angelegt.</div>
 {% endif %}
 {% endblock %}
+{% block scripts %}<script src="/static/js/sortable.js?v=1"></script>{% endblock %}
