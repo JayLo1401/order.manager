@@ -1,48 +1,59 @@
 # Deployment auf dem Hetzner-Server (Ubuntu) mit Auto-Update
 
-Ziel:
-- `https://bestellung.jaycloud.at` → Verwaltung + Küchenmonitor
-- `https://pizza.jaycloud.at` → Gäste-Seiten
-- Ein **systemd-Timer** prüft alle 5 Minuten, ob es auf GitHub neue Commits gibt, und aktualisiert dann automatisch (`git pull` + Neubau; die DB-Migrationen laufen beim Start von selbst).
+- Domain: `https://bestellung.jaycloud.at` (Verwaltung, Küchenmonitor und Gäste-Link `…/o/<code>`)
+- Installationsordner: `/srv/bestell_manager`
+- Auto-Update: Ein systemd-Timer prüft alle 5 Minuten, ob es auf GitHub neue Commits gibt, und aktualisiert dann automatisch.
 
-Alle Befehle als `root` (oder mit `sudo`) auf dem Server.
+Alle Befehle werden als **root** ausgeführt. Nach dem SSH-Login einmal `sudo -i` eingeben.
 
 ---
 
-## 0. Voraussetzungen
+## Schritt 1 – DNS-Eintrag anlegen
 
-Docker und das Compose-Plugin sind vom service_manager schon da. Kurz prüfen:
+In der Hetzner Console: **DNS → jaycloud.at → Record hinzufügen**
+
+| Name       | Typ | Wert           |
+|------------|-----|----------------|
+| bestellung | A   | IPv4 des Servers |
+
+Verwendet der Server auch IPv6, zusätzlich einen `AAAA`-Eintrag mit der IPv6-Adresse anlegen.
+
+Prüfen (dauert meist 1–5 Minuten):
 
 ```sh
+dig +short bestellung.jaycloud.at
+```
+
+→ muss die Server-IP ausgeben.
+
+## Schritt 2 – Auf dem Server anmelden und Docker prüfen
+
+```sh
+ssh <dein-user>@<server-ip>
+sudo -i
 docker --version && docker compose version
 ```
 
-Falls nicht: `curl -fsSL https://get.docker.com | sh`
+Beide Befehle sollten eine Version ausgeben, weil Docker durch den service_manager schon installiert ist.
 
-## 1. DNS (Hetzner Console → DNS → jaycloud.at)
+## Schritt 3 – Deploy-Key für GitHub erzeugen
 
-Zwei Einträge auf die Server-IP anlegen (wie bei den anderen Subdomains):
-
-| Name        | Typ  | Wert          |
-|-------------|------|---------------|
-| bestellung  | A    | <Server-IPv4> |
-| pizza       | A    | <Server-IPv4> |
-
-(Falls IPv6 genutzt wird, zusätzlich je einen AAAA-Eintrag.)
-
-## 2. Deploy-Key für das private Repo
-
-Der Server braucht Lesezugriff auf `JayLo1401/bestell_manager`. Dafür einen eigenen, nur lesenden Schlüssel anlegen:
+Der Server braucht Lesezugriff auf das private Repo.
 
 ```sh
 ssh-keygen -t ed25519 -N "" -C "hetzner-bestell-manager" -f /root/.ssh/bestell_manager_deploy
 cat /root/.ssh/bestell_manager_deploy.pub
 ```
 
-Den ausgegebenen Public Key auf GitHub eintragen:
-**Repo → Settings → Deploy keys → Add deploy key**. Titel z.B. „Hetzner“, **„Allow write access“ NICHT anhaken**.
+Die ausgegebene Zeile (beginnt mit `ssh-ed25519 …`) kopieren und dann:
 
-Damit sich der Schlüssel nicht mit dem des service_managers ins Gehege kommt, einen eigenen Host-Alias anlegen:
+1. https://github.com/JayLo1401/bestell_manager/settings/keys öffnen.
+2. **Add deploy key** wählen.
+3. Title: `Hetzner`, Key: die kopierte Zeile einfügen.
+4. **„Allow write access“ NICHT anhaken.**
+5. **Add key** klicken.
+
+SSH-Alias anlegen, damit sich dieser Key nicht mit dem des service_managers überschneidet:
 
 ```sh
 cat >> /root/.ssh/config <<'EOF'
@@ -54,63 +65,90 @@ Host github-bestell
     IdentitiesOnly yes
 EOF
 chmod 600 /root/.ssh/config
-ssh -T github-bestell    # einmal mit "yes" bestätigen; Antwort "Hi JayLo1401/bestell_manager! ..." passt
+ssh -T github-bestell
 ```
 
-## 3. Repo klonen
+Bei der Frage `Are you sure you want to continue connecting` mit `yes` bestätigen.
+Erwartete Antwort: `Hi JayLo1401/bestell_manager! You've successfully authenticated…`
+
+## Schritt 4 – Repo klonen
 
 ```sh
-git clone github-bestell:JayLo1401/bestell_manager.git /opt/bestell_manager
-cd /opt/bestell_manager
+git clone github-bestell:JayLo1401/bestell_manager.git /srv/bestell_manager
+cd /srv/bestell_manager
 ```
 
-## 4. Konfiguration (`.env`)
+## Schritt 5 – Konfiguration `.env` anlegen
+
+Zuerst zwei Zufallswerte erzeugen und notieren:
 
 ```sh
-cp .env.example .env
-python3 -c "import secrets; print(secrets.token_hex(32))"   # -> SESSION_SECRET
-nano .env
+openssl rand -hex 32     # -> für SESSION_SECRET
+openssl rand -hex 16     # -> für POSTGRES_PASSWORD
 ```
 
-Folgende Werte setzen:
+Dann die Datei schreiben. Die Platzhalter `<…>` durch deine Werte ersetzen:
 
-```ini
-POSTGRES_PASSWORD=<langes zufälliges Passwort>
-SESSION_SECRET=<Ausgabe von oben>
+```sh
+cat > /srv/bestell_manager/.env <<'EOF'
+POSTGRES_USER=bestellung
+POSTGRES_PASSWORD=<zweiter Zufallswert>
+POSTGRES_DB=bestellung
+
+SESSION_SECRET=<erster Zufallswert>
 SESSION_COOKIE_SECURE=true
 APP_BIND=127.0.0.1:8001
 
 ADMIN_EMAIL=<deine E-Mail>
-ADMIN_PASSWORD=<Start-Passwort, danach in der App ändern>
+ADMIN_PASSWORD=<Start-Passwort, mind. 8 Zeichen>
 ADMIN_NAME=Jürgen
 
 ADMIN_BASE_URL=https://bestellung.jaycloud.at
-GUEST_BASE_URL=https://pizza.jaycloud.at
+GUEST_BASE_URL=https://bestellung.jaycloud.at
+VAPID_SUBJECT=
+EOF
+chmod 600 /srv/bestell_manager/.env
 ```
 
-> `APP_BIND=127.0.0.1:8001`: Die App ist dann nur lokal für den Reverse-Proxy erreichbar. Port 8001 ist gewählt, damit es keinen Konflikt mit dem service_manager (8000) gibt – falls 8001 belegt ist, einfach einen anderen freien Port nehmen und unten im Proxy gleich eintragen.
+Hinweise:
+- `APP_BIND=127.0.0.1:8001` bedeutet: Die App ist nur lokal für den Reverse-Proxy erreichbar, nicht direkt aus dem Internet. Der service_manager belegt Port 8000, deshalb 8001. Prüfen, ob 8001 frei ist: `ss -ltnp | grep 8001`. Kommt keine Ausgabe, ist der Port frei.
+- `ADMIN_*` wird nur beim allerersten Start verwendet. Das Passwort danach in der App ändern.
+- Die `.env` ist nicht im Git und wird bei Updates nie überschrieben.
 
-`.env` ist nicht im Git – sie bleibt bei Updates unangetastet.
-
-## 5. Erster Start
+## Schritt 6 – Erster Start
 
 ```sh
+cd /srv/bestell_manager
 docker compose up -d --build
-docker compose logs -f app        # warten bis "Application startup complete", dann Strg+C
-curl -s http://127.0.0.1:8001/healthz   # -> {"ok":true}
+docker compose logs -f app
 ```
 
-## 6. Reverse-Proxy + HTTPS
+Im Log erscheinen nacheinander „Fuehre Datenbank-Migrationen aus…“, „Admin … angelegt.“ und „Application startup complete“. Danach mit **Strg+C** das Log verlassen. Die App läuft weiter.
 
-Denselben Proxy verwenden, der auch den service_manager ausliefert. Beide Domains zeigen auf **denselben** Container – die App trennt selbst (auf `pizza.` sind nur Gäste-Seiten erreichbar).
+Test:
 
-### Variante A: nginx + certbot
+```sh
+curl -s http://127.0.0.1:8001/healthz
+```
+
+→ `{"ok":true}`
+
+## Schritt 7 – Reverse-Proxy und HTTPS
+
+Nimm die Variante, die auch beim service_manager läuft. Welche das ist, zeigt dir:
+
+```sh
+docker ps --format '{{.Names}}' | grep -i traefik ; systemctl is-active nginx
+```
+
+### Variante A – nginx
 
 ```sh
 cat > /etc/nginx/sites-available/bestell_manager <<'EOF'
 server {
     listen 80;
-    server_name bestellung.jaycloud.at pizza.jaycloud.at;
+    listen [::]:80;
+    server_name bestellung.jaycloud.at;
 
     location / {
         proxy_pass http://127.0.0.1:8001;
@@ -122,21 +160,31 @@ server {
 EOF
 ln -s /etc/nginx/sites-available/bestell_manager /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
-certbot --nginx -d bestellung.jaycloud.at -d pizza.jaycloud.at
+certbot --nginx -d bestellung.jaycloud.at
 ```
 
-### Variante B: Traefik
+Bei certbot die Frage nach dem Redirect auf HTTPS mit „Redirect“ beantworten (bei neueren Versionen passiert das automatisch).
 
-`APP_BIND` in der `.env` kann bleiben. Zusätzlich eine `docker-compose.override.yml` anlegen (wird von `docker compose` automatisch mitgelesen, ist nicht im Git und überlebt Updates):
+### Variante B – Traefik
 
-```yaml
+Zuerst die Namen beim service_manager nachschauen (Netzwerk, Entrypoint, Certresolver):
+
+```sh
+docker inspect $(docker ps -q --filter "label=traefik.enable=true" | head -1) --format '{{json .Config.Labels}}' | tr ',' '\n' | grep traefik
+docker network ls | grep -i traefik
+```
+
+Dann eine `docker-compose.override.yml` anlegen. Diese Datei ist nicht im Git und überlebt deshalb jedes Update. `traefik`, `websecure` und `letsencrypt` ggf. durch die Namen von oben ersetzen:
+
+```sh
+cat > /srv/bestell_manager/docker-compose.override.yml <<'EOF'
 services:
   app:
     networks: [default, traefik]
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik"
-      - "traefik.http.routers.bestellung.rule=Host(`bestellung.jaycloud.at`) || Host(`pizza.jaycloud.at`)"
+      - "traefik.http.routers.bestellung.rule=Host(`bestellung.jaycloud.at`)"
       - "traefik.http.routers.bestellung.entrypoints=websecure"
       - "traefik.http.routers.bestellung.tls.certresolver=letsencrypt"
       - "traefik.http.services.bestellung.loadbalancer.server.port=8000"
@@ -144,19 +192,28 @@ services:
 networks:
   traefik:
     external: true
+EOF
+docker compose up -d
 ```
 
-Netzwerk-, Entrypoint- und Resolver-Namen wie beim service_manager übernehmen. Danach `docker compose up -d`.
+### Wichtig für beide Varianten
 
-**Wichtig bei beiden Varianten:** Die Seiten nicht hinter authentik o.ä. hängen – die Gäste müssen `pizza.jaycloud.at` ohne Login erreichen.
+**Keine authentik-Middleware bzw. kein Forward-Auth** vor diese Domain hängen. Die Gäste müssen den Bestell-Link ohne Login öffnen können. Die App hat ihren eigenen Login.
 
-Test: `https://bestellung.jaycloud.at` öffnen und mit `ADMIN_EMAIL`/`ADMIN_PASSWORD` anmelden.
+## Schritt 8 – Testen und Passwort ändern
 
-## 7. Auto-Update-Dienst einrichten
+1. https://bestellung.jaycloud.at öffnen und mit `ADMIN_EMAIL` / `ADMIN_PASSWORD` anmelden.
+2. **Einstellungen → Passwort ändern**.
+3. Danach kann das Start-Passwort aus der `.env` entfernt werden:
+   `sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=/' /srv/bestell_manager/.env`
+   Das ist unkritisch, weil der Admin nur beim allerersten Start angelegt wird.
+4. **Link & QR-Code → Bestell-Link für heute erstellen**, den QR-Code mit dem Handy scannen und eine Testbestellung abschicken.
+
+## Schritt 9 – Auto-Update-Dienst einrichten
 
 ```sh
-cp /opt/bestell_manager/deploy/bestell-manager-update.service /etc/systemd/system/
-cp /opt/bestell_manager/deploy/bestell-manager-update.timer   /etc/systemd/system/
+cp /srv/bestell_manager/deploy/bestell-manager-update.service /etc/systemd/system/
+cp /srv/bestell_manager/deploy/bestell-manager-update.timer   /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now bestell-manager-update.timer
 ```
@@ -164,58 +221,87 @@ systemctl enable --now bestell-manager-update.timer
 Kontrolle:
 
 ```sh
-systemctl list-timers bestell-manager-update.timer     # nächster Lauf
-systemctl start bestell-manager-update.service         # sofort einmal prüfen
-journalctl -u bestell-manager-update.service -n 50     # Protokoll der Updates
+systemctl list-timers bestell-manager-update.timer
 ```
 
-Ab jetzt gilt: **Auf `main` pushen → spätestens nach ~5 Minuten läuft die neue Version.** Im Journal steht dann z.B.:
-
-```
-Update 1a2b3c4 -> 5d6e7f8
-Update erfolgreich: 5d6e7f8 Neue Funktion XY
-```
-
-Wenn es keine neuen Commits gibt, macht der Dienst nichts (kein Neubau).
-
-Intervall ändern: in `/etc/systemd/system/bestell-manager-update.timer` `OnUnitActiveSec=` anpassen, dann `systemctl daemon-reload`.
-
-## 8. Backup der Datenbank (empfohlen)
+In der Spalte NEXT steht, wann der nächste Lauf ist. Einmal sofort ausführen und das Ergebnis ansehen:
 
 ```sh
-mkdir -p /opt/bestell_manager/backups
+systemctl start bestell-manager-update.service
+journalctl -u bestell-manager-update.service -n 20 --no-pager
+```
+
+Gibt es keine Updates, steht dort nur „Finished …“. Das ist korrekt.
+
+## Schritt 10 – Auto-Update testen
+
+Am PC eine kleine Änderung committen und pushen. Spätestens 5 Minuten danach am Server:
+
+```sh
+journalctl -u bestell-manager-update.service -n 20 --no-pager
+```
+
+Erwartet wird z.B.:
+
+```
+Update c41e3bb -> 1a2b3c4
+Update erfolgreich: 1a2b3c4 <Commit-Nachricht>
+```
+
+**Ab jetzt gilt: Push auf `main` = neue Version läuft nach spätestens etwa 5 Minuten.** Datenbank-Migrationen laufen beim Neustart automatisch mit.
+
+## Schritt 11 – Tägliches Datenbank-Backup (empfohlen)
+
+```sh
+mkdir -p /srv/bestell_manager/backups
 crontab -e
 ```
 
-Zeile hinzufügen (täglich 3:30, 14 Tage aufheben):
+Am Ende diese Zeile einfügen. Sie macht täglich um 3:30 Uhr ein Backup und hebt es 14 Tage auf:
 
 ```cron
-30 3 * * * cd /opt/bestell_manager && docker compose exec -T db pg_dump -U bestellung bestellung | gzip > backups/bestellung_$(date +\%F).sql.gz && find backups -name '*.sql.gz' -mtime +14 -delete
+30 3 * * * cd /srv/bestell_manager && docker compose exec -T db pg_dump -U bestellung bestellung | gzip > backups/bestellung_$(date +\%F).sql.gz && find backups -name '*.sql.gz' -mtime +14 -delete
 ```
 
 Wiederherstellen:
 
 ```sh
-gunzip -c backups/bestellung_2026-10-14.sql.gz | docker compose exec -T db psql -U bestellung bestellung
+cd /srv/bestell_manager
+gunzip -c backups/bestellung_<DATUM>.sql.gz | docker compose exec -T db psql -U bestellung bestellung
 ```
 
-## 9. Nützliche Befehle
+---
+
+## Nützliche Befehle
 
 ```sh
-cd /opt/bestell_manager
-docker compose ps                      # läuft alles?
-docker compose logs -f app             # Live-Log
-tail -f data/logs/app.log              # App-Logdatei
-sh update.sh                           # manuelles Update (ohne auf den Timer zu warten)
-systemctl stop bestell-manager-update.timer    # Auto-Update pausieren
+cd /srv/bestell_manager
+docker compose ps                                  # läuft alles?
+docker compose logs -f app                         # Live-Log
+tail -f data/logs/app.log                          # Logdatei der App
+sh update.sh                                       # sofort manuell aktualisieren
+systemctl stop bestell-manager-update.timer        # Auto-Update pausieren
+systemctl start bestell-manager-update.timer       # … und wieder aktivieren
 ```
 
 ## Fehlersuche
 
 | Problem | Lösung |
 |---|---|
-| Update-Dienst meldet `Not possible to fast-forward` | Jemand hat am Server Dateien im Repo geändert. `git status` prüfen, Änderungen mit `git checkout -- <datei>` verwerfen. Server-Anpassungen gehören in `.env` bzw. `docker-compose.override.yml`. |
-| `Permission denied (publickey)` beim fetch | Deploy-Key auf GitHub prüfen, `ssh -T github-bestell` testen. |
-| Login klappt nicht / fliegt sofort raus | `SESSION_COOKIE_SECURE=true` braucht HTTPS. Header `X-Forwarded-Proto` im Proxy gesetzt? |
-| QR-Code zeigt falsche Domain | `GUEST_BASE_URL` in `.env` prüfen, dann `docker compose up -d`. |
-| Push-Benachrichtigungen kommen nicht | Funktionieren nur über HTTPS. Am iPhone nur, wenn die Seite zum Home-Bildschirm hinzugefügt wurde. |
+| Journal zeigt `Not possible to fast-forward` | Am Server wurde eine Datei aus dem Repo geändert. `git status` zeigt welche, `git checkout -- <datei>` verwirft die Änderung. Server-Anpassungen gehören nur in `.env` bzw. `docker-compose.override.yml`. |
+| `Permission denied (publickey)` | Deploy-Key auf GitHub prüfen, `ssh -T github-bestell` testen. |
+| Login klappt, fliegt aber sofort wieder raus | `SESSION_COOKIE_SECURE=true` braucht HTTPS. Im nginx muss `X-Forwarded-Proto` gesetzt sein (siehe Schritt 7). |
+| QR-Code zeigt falsche Adresse | `GUEST_BASE_URL` in der `.env` prüfen, dann `docker compose up -d`. |
+| 502 Bad Gateway | `docker compose ps` und `docker compose logs app` prüfen. Stimmt der Port im Proxy (8001) mit `APP_BIND` überein? |
+| Push-Benachrichtigungen kommen nicht | Funktionieren nur über HTTPS. Am iPhone nur, wenn die Bestellseite zum Home-Bildschirm hinzugefügt wurde. |
+
+## Später: eigene Gäste-Domain (optional)
+
+Soll der QR-Code z.B. auf `pizza.jaycloud.at` zeigen:
+
+1. Einen DNS-Eintrag `pizza` anlegen.
+2. Die Domain zusätzlich im Proxy eintragen (nginx: `server_name` erweitern und certbot mit `-d pizza.jaycloud.at` erneut ausführen; Traefik: `|| Host(\`pizza.jaycloud.at\`)` an die Rule anhängen).
+3. In der `.env` `GUEST_BASE_URL=https://pizza.jaycloud.at` setzen.
+4. `docker compose up -d` ausführen.
+
+Auf der Gäste-Domain sind dann nur die Bestellseiten erreichbar.

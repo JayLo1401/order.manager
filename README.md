@@ -48,7 +48,7 @@ Die VAPID-Schlüssel werden beim ersten Bedarf automatisch erzeugt und in der Da
 
 Schritt-für-Schritt-Anleitung: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
 
-Kurzfassung: Repo nach `/opt/bestell_manager` klonen, `.env` anlegen, `docker compose up -d --build`, beide Domains im Reverse-Proxy auf `127.0.0.1:8001` zeigen lassen. Der systemd-Timer `bestell-manager-update.timer` prüft alle 5 Minuten auf neue Commits und aktualisiert automatisch.
+Kurzfassung: Repo nach `/srv/bestell_manager` klonen, `.env` anlegen, `docker compose up -d --build`, `bestellung.jaycloud.at` im Reverse-Proxy auf `127.0.0.1:8001` zeigen lassen. Der systemd-Timer `bestell-manager-update.timer` prüft alle 5 Minuten auf neue Commits und aktualisiert automatisch.
 
 ## Update & Migrationen
 
