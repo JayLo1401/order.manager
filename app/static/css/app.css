@@ -206,7 +206,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--primary); width: 1
 
 /* ------------------------------------------------------------ Link / QR */
 .qr-box { background: #fff; padding: .75rem; border-radius: var(--radius); display: inline-block; line-height: 0; }
-.qr-box svg { width: 260px; height: 260px; }
+.qr-box svg { display: block; width: 260px; height: 260px; max-width: 100%; }
 .url-box { display: flex; gap: .5rem; }
 .url-box input { font-family: ui-monospace, monospace; font-size: .85rem; }
 

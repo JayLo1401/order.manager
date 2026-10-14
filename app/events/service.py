@@ -40,7 +40,9 @@ def guest_url(request: Request, event: Event) -> str:
 def qr_svg(url: str) -> str:
     qr = segno.make(url, error="m")
     buffer = io.BytesIO()
-    qr.save(buffer, kind="svg", scale=8, border=2, xmldecl=False, svgns=True, dark="#111", light="#fff")
+    # omitsize: nur viewBox statt fester width/height - sonst schneidet der
+    # Browser den Code ab, sobald das CSS ihn kleiner darstellt (unscanbar).
+    qr.save(buffer, kind="svg", border=4, xmldecl=False, svgns=True, omitsize=True, dark="#000", light="#fff")
     return buffer.getvalue().decode()
 
 

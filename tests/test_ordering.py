@@ -35,6 +35,15 @@ def test_link_page_shows_qr(client, db_session, admin):
     assert client.get("/link/qr.png").headers["content-type"] == "image/png"
 
 
+def test_qr_svg_scales_instead_of_cropping():
+    from app.events.service import qr_svg
+
+    svg = qr_svg("https://bestellung.example/o/abcdefghijklmnopqrstuvwxyz012345")
+    head = svg[:svg.index(">")]
+    assert "viewBox" in head
+    assert "width=" not in head and "height=" not in head
+
+
 def test_guest_orders_preset_and_kitchen_completes(client, db_session, admin):
     event = _create_link(client, db_session, admin)
     guest = _guest(client)
