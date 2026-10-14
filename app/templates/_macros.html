@@ -17,6 +17,13 @@
 </div>
 {% endmacro %}
 
+{% macro veg_filter() %}
+<label class="veg-filter">
+  <input type="checkbox" id="veg-only">
+  <span>🌱 Nur vegetarisch anzeigen</span>
+</label>
+{% endmacro %}
+
 {% macro flashes() %}
   {% for f in get_flashed() %}
     <div class="flash flash-{{ f.category }}">{{ f.message }}</div>

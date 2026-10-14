@@ -1,6 +1,7 @@
 {% extends "guest/guest_base.html" %}
 {% block content %}
 <p class="guest-who">Hallo {{ ctx.guest.label }}! Was darf’s sein?</p>
+{% if products %}{{ m.veg_filter() }}{% endif %}
 
 <form method="post" action="{{ ctx.base }}/order" id="order-form">
   {{ m.csrf() }}
@@ -15,7 +16,7 @@
       </a>
     {% endif %}
     {% for p in products %}
-      <label class="option">
+      <label class="option" data-veg-item="{{ 1 if p.vegetarian else 0 }}">
         <input type="radio" name="product_id" value="{{ p.id }}" required>
         <span class="option-body">
           <span class="option-icon emoji">{{ p.icon }}</span>
@@ -28,6 +29,9 @@
       </label>
     {% endfor %}
   </div>
+  <p class="muted" id="veg-empty" style="text-align:center;margin-top:1rem" hidden>
+    Keine vegetarische Pizza auf der Karte{% if ctx.settings.allow_custom %} – stell dir einfach eine Wunschpizza zusammen{% endif %}.
+  </p>
 
   {% if products %}
     {% if ctx.settings.allow_note %}
@@ -44,4 +48,4 @@
   {% endif %}
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=3"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=4"></script>{% endblock %}

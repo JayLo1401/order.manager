@@ -31,6 +31,36 @@
     update();
   }
 
+  // ---------------------------------------------------------------- Nur vegetarisch
+  // Filtert fertige Pizzen und Wunschpizza-Zutaten. Der Zustand bleibt auf dem
+  // Geraet gespeichert, damit er zwischen Auswahl und Wunschpizza erhalten bleibt.
+  const vegToggle = $("#veg-only");
+  if (vegToggle) {
+    const apply = () => {
+      const on = vegToggle.checked;
+      document.querySelectorAll("[data-veg-item]").forEach((el) => {
+        const hide = on && el.dataset.vegItem !== "1";
+        el.hidden = hide;
+        // Ausgeblendetes darf nicht unbemerkt mitbestellt werden
+        if (hide) {
+          el.querySelectorAll("input:checked").forEach((input) => {
+            input.checked = false;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+        }
+      });
+      document.querySelectorAll("[data-veg-group]").forEach((group) => {
+        group.hidden = !group.querySelector("[data-veg-item]:not([hidden])");
+      });
+      const empty = $("#veg-empty");
+      if (empty) empty.hidden = !on || !!document.querySelector("[data-veg-item]:not([hidden])");
+      try { localStorage.setItem("veg-only", on ? "1" : "0"); } catch (e) { /* egal */ }
+    };
+    try { vegToggle.checked = localStorage.getItem("veg-only") === "1"; } catch (e) { /* egal */ }
+    vegToggle.addEventListener("change", apply);
+    apply();
+  }
+
   // ---------------------------------------------------------------- Status
   const ordersEl = $("#orders");
   if (!ordersEl) return;

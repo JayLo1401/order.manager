@@ -88,6 +88,26 @@ def test_guest_orders_preset_and_kitchen_completes(client, db_session, admin):
     assert client.post(f"/kitchen/api/orders/{order['id']}/status", json={"status": "in_progress"}).status_code == 400
 
 
+def test_guest_pages_mark_vegetarian_items_for_filter(client, db_session, admin):
+    event = _create_link(client, db_session, admin)
+    guest = _guest(client)
+    _join(guest, event)
+
+    menu = guest.get(f"/o/{event.token}/menu").text
+    assert 'id="veg-only"' in menu
+    margherita = db_session.scalar(select(Product).where(Product.owner_id == admin.id, Product.name == "Margherita"))
+    salami = db_session.scalar(select(Product).where(Product.owner_id == admin.id, Product.name == "Salami"))
+    assert re.search(rf'data-veg-item="1">\s*<input type="radio" name="product_id" value="{margherita.id}"', menu)
+    assert re.search(rf'data-veg-item="0">\s*<input type="radio" name="product_id" value="{salami.id}"', menu)
+
+    custom = guest.get(f"/o/{event.token}/custom").text
+    assert 'id="veg-only"' in custom
+    assert custom.count('data-veg-item="0"') == len([
+        i for i in db_session.scalars(select(Ingredient).where(Ingredient.owner_id == admin.id))
+        if not i.vegetarian
+    ])
+
+
 def test_kitchen_grants_extra_order(client, db_session, admin):
     event = _create_link(client, db_session, admin)
     guest = _guest(client)
