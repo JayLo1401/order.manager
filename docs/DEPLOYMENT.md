@@ -53,19 +53,10 @@ Die ausgegebene Zeile (beginnt mit `ssh-ed25519 …`) kopieren und dann:
 4. **„Allow write access“ NICHT anhaken.**
 5. **Add key** klicken.
 
-SSH-Alias anlegen, damit sich dieser Key nicht mit dem des service_managers überschneidet:
+Verbindung testen:
 
 ```sh
-cat >> /root/.ssh/config <<'EOF'
-
-Host github-bestell
-    HostName github.com
-    User git
-    IdentityFile /root/.ssh/bestell_manager_deploy
-    IdentitiesOnly yes
-EOF
-chmod 600 /root/.ssh/config
-ssh -T github-bestell
+ssh -i /root/.ssh/bestell_manager_deploy -o IdentitiesOnly=yes -T git@github.com
 ```
 
 Bei der Frage `Are you sure you want to continue connecting` mit `yes` bestätigen.
@@ -73,9 +64,17 @@ Erwartete Antwort: `Hi JayLo1401/bestell_manager! You've successfully authentica
 
 ## Schritt 4 – Repo klonen
 
+Mit dem Deploy-Key klonen und den Key fest im Repo hinterlegen. Dadurch nutzen `git fetch` und der Auto-Update-Dienst später automatisch diesen Key, und er kommt dem service_manager nicht in die Quere.
+
 ```sh
-git clone github-bestell:JayLo1401/bestell_manager.git /srv/bestell_manager
+cd /srv
+export GIT_SSH_COMMAND="ssh -i /root/.ssh/bestell_manager_deploy -o IdentitiesOnly=yes"
+git clone git@github.com:JayLo1401/bestell_manager.git /srv/bestell_manager
+unset GIT_SSH_COMMAND
+
 cd /srv/bestell_manager
+git config core.sshCommand "ssh -i /root/.ssh/bestell_manager_deploy -o IdentitiesOnly=yes"
+git fetch && echo "Zugriff OK"
 ```
 
 ## Schritt 5 – Konfiguration `.env` anlegen
@@ -289,7 +288,7 @@ systemctl start bestell-manager-update.timer       # … und wieder aktivieren
 | Problem | Lösung |
 |---|---|
 | Journal zeigt `Not possible to fast-forward` | Am Server wurde eine Datei aus dem Repo geändert. `git status` zeigt welche, `git checkout -- <datei>` verwirft die Änderung. Server-Anpassungen gehören nur in `.env` bzw. `docker-compose.override.yml`. |
-| `Permission denied (publickey)` | Deploy-Key auf GitHub prüfen, `ssh -T github-bestell` testen. |
+| `Permission denied (publickey)` | Deploy-Key auf GitHub prüfen, `ssh -i /root/.ssh/bestell_manager_deploy -o IdentitiesOnly=yes -T git@github.com` testen. Im Repo muss `git config core.sshCommand` gesetzt sein (Schritt 4). |
 | Login klappt, fliegt aber sofort wieder raus | `SESSION_COOKIE_SECURE=true` braucht HTTPS. Im nginx muss `X-Forwarded-Proto` gesetzt sein (siehe Schritt 7). |
 | QR-Code zeigt falsche Adresse | `GUEST_BASE_URL` in der `.env` prüfen, dann `docker compose up -d`. |
 | 502 Bad Gateway | `docker compose ps` und `docker compose logs app` prüfen. Stimmt der Port im Proxy (8001) mit `APP_BIND` überein? |
