@@ -4,6 +4,7 @@ import jinja2
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
 
+from app import __version__
 from app.auth.dependencies import get_csrf_token
 from app.models.catalog import KINDS
 from app.models.event import COURSES
@@ -34,6 +35,7 @@ def _local_time(value, fmt: str = "%H:%M") -> str:
     return local.strftime(fmt) if local else ""
 
 
+templates.env.globals["APP_VERSION"] = __version__
 templates.env.globals["COURSES"] = COURSES
 templates.env.globals["KINDS"] = KINDS
 templates.env.globals["get_flashed"] = _get_flashed

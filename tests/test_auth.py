@@ -57,3 +57,11 @@ def test_open_redirect_blocked(client, admin):
         "email": "admin@test.at", "password": "geheim123", "next": "//evil.example", "csrf_token": token,
     }, follow_redirects=False)
     assert response.headers["location"] == "/"
+
+
+def test_version_in_healthz_and_footer(client, admin):
+    from app import __version__
+
+    assert client.get("/healthz").json() == {"ok": True, "version": __version__}
+    login(client, "admin@test.at", "geheim123")
+    assert f"v{__version__}" in client.get("/settings").text

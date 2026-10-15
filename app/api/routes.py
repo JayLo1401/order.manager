@@ -1,4 +1,4 @@
-"""Lese-API fuer externe Anzeigen (z.B. das home_radio): Gibt es heute einen
+"""Lese-API fuer externe Anzeigen (z.B. ein Smart-Display): Gibt es heute einen
 Bestelltag? Wenn ja: Titel, Status der Kueche und QR-Code zum Bestellen.
 
 Authentifizierung per HTTP Basic mit den normalen Zugangsdaten (E-Mail +

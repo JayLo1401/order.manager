@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
+from app import __version__
 from app.admin.routes import router as admin_router
 from app.api.routes import router as api_router
 from app.auth.dependencies import require_login
@@ -28,11 +29,11 @@ from app.templating import templates
 
 configure_logging()
 
-app = FastAPI(title="Bestell-Manager", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="Bestell-Manager", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
 
 static_dir = Path(__file__).parent / "static"
 
-# Auf der Gaeste-Domain (z.B. pizza.jaycloud.at) sind nur die Gaeste-Seiten
+# Auf der Gaeste-Domain (z.B. pizza.example.com) sind nur die Gaeste-Seiten
 # erreichbar; alles andere wird auf die Verwaltungs-Domain umgeleitet.
 GUEST_HOST_ALLOWED_PREFIXES = ("/o/", "/static/")
 GUEST_HOST_ALLOWED_PATHS = ("/sw.js", "/healthz", "/favicon.ico")
@@ -81,7 +82,7 @@ def favicon():
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "version": __version__}
 
 
 @app.exception_handler(HTTPException)

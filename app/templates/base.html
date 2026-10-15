@@ -47,6 +47,9 @@
     {{ m.flashes() }}
     {% block content %}{% endblock %}
   </main>
+  {% if request.session.get("user_id") %}
+    <footer class="site-footer">Bestell-Manager v{{ APP_VERSION }}</footer>
+  {% endif %}
   {% block scripts %}{% endblock %}
 </body>
 </html>
