@@ -60,3 +60,46 @@ def test_api_shows_own_event_only(client, db_session, admin):
     assert client.get("/api/v1/today", auth=AUTH).json()["active"] is True
     # Der Kollege hat heute keinen Bestelltag - und sieht den des Admins nicht
     assert client.get("/api/v1/today", auth=("kollege@test.at", "geheim456")).json()["active"] is False
+
+
+def test_api_ready_for_pickup(client, db_session, admin):
+    import datetime
+
+    from fastapi.testclient import TestClient
+    from sqlalchemy import select
+
+    from app.models.catalog import Product
+    from app.models.event import Event, Order
+
+    login(client, "admin@test.at", "geheim123")
+    client.post("/link/create", data={"csrf_token": csrf_from(client, "/link")})
+    client.post("/link/courses", data={"courses": ["starter", "main"], "main_kind": "pizza",
+                                       "csrf_token": csrf_from(client, "/link")})
+    client.post("/link/course", data={"course": "starter", "csrf_token": csrf_from(client, "/link")})
+    event = db_session.scalar(select(Event))
+    soup = db_session.scalar(select(Product).where(Product.name == "Kürbiscremesuppe"))
+
+    # Drei Gaeste: zwei Suppen, einer moechte keine Vorspeise
+    for name, data in [("Anna", {"product_id": soup.id}), ("Ben", {"product_id": soup.id}), ("Carla", {"skip": "1"})]:
+        guest = TestClient(client.app, base_url="http://bestellung.test")
+        guest.post(f"/o/{event.token}/join", data={"name": name, "csrf_token": csrf_from(guest, f"/o/{event.token}")})
+        guest.post(f"/o/{event.token}/order", data={**data, "csrf_token": csrf_from(guest, f"/o/{event.token}/menu")})
+
+    assert client.get("/api/v1/ready", auth=AUTH).json()["ready"] == []
+    headers = {"X-CSRF-Token": csrf_from(client, "/kitchen")}
+    for o in client.get("/kitchen/api/orders").json()["orders"]:
+        client.post(f"/kitchen/api/orders/{o['id']}/status", json={"status": "done"}, headers=headers)
+
+    data = client.get("/api/v1/ready", auth=AUTH).json()
+    assert data["active"] is True
+    assert [(r["guest"], r["item_name"], r["course_label"]) for r in data["ready"]] == [
+        ("Anna", "Kürbiscremesuppe", "Vorspeise"), ("Ben", "Kürbiscremesuppe", "Vorspeise"),
+    ]
+    assert len({r["key"] for r in data["ready"]}) == 2 and data["ready"][0]["age_seconds"] < 10
+
+    # Aelter als das Zeitfenster -> nicht mehr dabei
+    for order in db_session.scalars(select(Order)):
+        order.done_at = order.done_at - datetime.timedelta(minutes=5)
+    db_session.commit()
+    assert client.get("/api/v1/ready", auth=AUTH).json()["ready"] == []
+    assert client.get("/api/v1/ready", auth=("admin@test.at", "falsch")).status_code == 401
