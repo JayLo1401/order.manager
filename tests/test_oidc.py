@@ -1,5 +1,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
 import pytest
 from sqlalchemy import select
 
@@ -30,6 +31,13 @@ def test_button_hidden_without_config(client, admin):
 
 def test_button_shown_with_config(client, admin, fake_oidc):
     assert "Mit authentik anmelden" in client.get("/login").text
+
+
+def test_unreachable_provider_shows_error(client, admin, fake_oidc):
+    fake_oidc.authorize_redirect = AsyncMock(side_effect=httpx.ConnectError("no address"))
+    response = client.get("/login/oidc", follow_redirects=False)
+    assert response.status_code == 400
+    assert "nicht erreichbar" in response.text
 
 
 def test_known_user_logged_in(client, admin, fake_oidc):

@@ -7,6 +7,7 @@ angemeldet (sofern freigeschaltet). Unbekannte Adressen werden wie bei
 
 import logging
 
+import httpx
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -53,7 +54,11 @@ def _login_error(request: Request, error: str):
 async def oidc_start(request: Request, next: str | None = None):
     client = get_client()
     request.session["oidc_next"] = safe_next(next)
-    return await client.authorize_redirect(request, str(request.url_for("oidc_callback")))
+    try:
+        return await client.authorize_redirect(request, str(request.url_for("oidc_callback")))
+    except httpx.HTTPError as exc:
+        logger.error("OIDC: authentik nicht erreichbar (%s): %s", settings.oidc_issuer, exc)
+        return _login_error(request, "authentik ist gerade nicht erreichbar.")
 
 
 @router.get("/login/oidc/callback")
@@ -61,10 +66,10 @@ async def oidc_callback(request: Request, db: Session = Depends(get_db)):
     client = get_client()
     try:
         token = await client.authorize_access_token(request)
-    except OAuthError as exc:
+        info = token.get("userinfo") or await client.userinfo(token=token)
+    except (OAuthError, httpx.HTTPError) as exc:
         logger.warning("OIDC-Anmeldung fehlgeschlagen: %s", exc)
         return _login_error(request, "Anmeldung über authentik fehlgeschlagen.")
-    info = token.get("userinfo") or await client.userinfo(token=token)
 
     email = (info.get("email") or "").strip().lower()
     if "@" not in email:

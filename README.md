@@ -133,6 +133,7 @@ Alle Einstellungen kommen aus der `.env` (Vorlage: [.env.example](.env.example))
 | `GUEST_BASE_URL` | Domain, auf die Link/QR-Code zeigen. Gleich wie `ADMIN_BASE_URL` = eine Domain für alles; eine eigene Gäste-Domain zeigt nur die Bestellseiten |
 | `TIMEZONE` | Zeitzone für „heute“ (Standard `Europe/Vienna`) |
 | `VAPID_SUBJECT` | Absender für Push (leer = `mailto:ADMIN_EMAIL`) |
+| `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Optional: zusätzlicher Login über authentik (siehe [DEPLOYMENT.md](docs/DEPLOYMENT.md#optional-anmeldung-über-authentik)) |
 
 ## Deployment & Auto-Update
 

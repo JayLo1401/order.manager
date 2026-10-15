@@ -286,3 +286,81 @@ Soll der QR-Code z.B. auf `pizza.example.com` zeigen:
 4. `docker compose up -d` ausführen.
 
 Auf der Gäste-Domain sind dann nur die Bestellseiten erreichbar.
+
+## Optional: Anmeldung über authentik
+
+Auf der Login-Seite erscheint zusätzlich ein Button **„Mit authentik anmelden“**. Der normale Login mit E-Mail und Passwort bleibt erhalten. Konten werden über die **E-Mail-Adresse** zugeordnet.
+
+Platzhalter: authentik läuft unter `auth.example.com`, die App unter `bestellung.example.com`.
+
+### Schritt A – Application und Provider in authentik anlegen
+
+1. In authentik als Admin anmelden → **Admin interface**.
+2. **Applications → Applications → Create with Provider** (bzw. „Create with wizard“).
+3. **Application:**
+   - Name: `Bestell-Manager`
+   - Slug: `bestell-manager` (merken, steckt später im Issuer)
+   - Launch URL: `https://bestellung.example.com/login/oidc` – damit meldet ein Klick im authentik-Dashboard direkt an (nicht nur die Domain eintragen, sonst landet man auf der Login-Seite)
+4. **Provider-Typ:** `OAuth2/OpenID Provider`.
+5. **Provider-Einstellungen:**
+   - Authorization flow: `default-provider-authorization-implicit-consent` (keine extra Zustimmungsseite)
+   - Client type: **Confidential**
+   - Redirect URIs: Modus **Strict**, URL `https://bestellung.example.com/login/oidc/callback`
+   - Bei *Advanced protocol settings* → Scopes: `openid`, `email` und `profile` müssen ausgewählt sein (Standard)
+   - **Client ID** und **Client Secret** kopieren
+6. **Bindings (empfohlen):** Die Application an eine Gruppe binden (z.B. `bestell-manager`), damit sich nur deren Mitglieder anmelden können.
+7. Speichern. Danach **Applications → Providers → (dein Provider)** öffnen und den Wert **„OpenID Configuration Issuer“** kopieren, z.B. `https://auth.example.com/application/o/bestell-manager/`.
+
+### Schritt B – E-Mail-Adressen abgleichen
+
+Die Zuordnung läuft über die E-Mail. Damit du als Admin per authentik reinkommst, muss dein authentik-Benutzer **dieselbe E-Mail** haben wie dein Konto in der App (`ADMIN_EMAIL`). Groß-/Kleinschreibung ist egal.
+
+Wer sich per authentik anmeldet und noch kein Konto hat, wird als „wartet auf Freischaltung“ angelegt und muss unter **Benutzer** freigegeben werden – wie bei einer normalen Registrierung.
+
+> **Sicherheit:** Die App vertraut der E-Mail, die authentik liefert. In authentik darf deshalb niemand seine E-Mail selbst frei ändern oder sich selbst mit beliebiger E-Mail registrieren können – sonst könnte er fremde Konten (auch den Admin) übernehmen. Im Zweifel die Application an eine Gruppe binden (Schritt A.6).
+
+### Schritt C – `.env` auf dem Server ergänzen
+
+```sh
+cd /srv/order.manager
+cat >> .env <<'EOF'
+
+OIDC_ISSUER=https://auth.example.com/application/o/bestell-manager/
+OIDC_CLIENT_ID=<Client ID aus Schritt A>
+OIDC_CLIENT_SECRET=<Client Secret aus Schritt A>
+OIDC_BUTTON_LABEL=Mit authentik anmelden
+EOF
+```
+
+### Schritt D – Neu bauen und starten
+
+Die Funktion braucht eine neue Python-Bibliothek, deshalb muss das Image neu gebaut werden:
+
+```sh
+cd /srv/order.manager
+sh update.sh
+```
+
+(Mit Auto-Update passiert das nach dem Push ohnehin – die `.env`-Änderung wird aber erst beim nächsten Neustart übernommen. `sh update.sh` erledigt beides sofort.)
+
+### Schritt E – Prüfen
+
+1. Der Container erreicht authentik:
+
+   ```sh
+   docker compose exec app python -c "import httpx,os; print(httpx.get(os.environ['OIDC_ISSUER'].rstrip('/')+'/.well-known/openid-configuration').status_code)"
+   ```
+
+   → muss `200` ausgeben.
+2. `https://bestellung.example.com/login` im **privaten Browserfenster** öffnen → Button „Mit authentik anmelden“ ist da.
+3. Button klicken → authentik-Login → zurück in der App, angemeldet.
+
+### Fehlersuche authentik
+
+| Problem | Lösung |
+| --- | --- |
+| Button fehlt | Einer der drei `OIDC_*`-Werte ist leer, oder der Container wurde nach der `.env`-Änderung nicht neu gestartet (`docker compose up -d`). |
+| authentik meldet „Redirect URI Error“ | Redirect-URI im Provider muss exakt `https://bestellung.example.com/login/oidc/callback` sein (https, kein Slash am Ende). |
+| „Anmeldung über authentik fehlgeschlagen.“ | `docker compose logs app \| grep OIDC` zeigt den Grund. Häufig: falsches Client Secret, oder `mismatching_state` – dann kam der Session-Cookie nicht zurück (`SESSION_COOKIE_SECURE=true` braucht HTTPS, `X-Forwarded-Proto` im Proxy prüfen). |
+| Nach authentik-Login: „wartet auf Freischaltung“ | Die E-Mail in authentik passt zu keinem bestehenden Konto. Entweder in authentik die E-Mail anpassen, oder das neu angelegte Konto unter **Benutzer** freischalten (und ggf. das alte löschen). |
+| „authentik ist gerade nicht erreichbar.“ bzw. `No address associated with hostname` | Der Container kann den Namen aus `OIDC_ISSUER` nicht auflösen. Prüfen: `docker compose exec app printenv OIDC_ISSUER` (Tippfehler? Platzhalter?) und `docker compose exec app getent hosts auth.example.com`. Löst nur der Server selbst den Namen auf (z.B. Eintrag in `/etc/hosts`, authentik auf demselben Server), in der `docker-compose.override.yml` beim Service `app` `extra_hosts: ["auth.example.com:host-gateway"]` eintragen und `docker compose up -d` ausführen. |
