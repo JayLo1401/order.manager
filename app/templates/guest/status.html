@@ -35,10 +35,12 @@
 {% endif %}
 
 <div id="orders" data-status-url="{{ ctx.base }}/api/status" data-can-order="{{ 1 if can_order_more else 0 }}" data-course="{{ course or '' }}">
-{% for o in orders %}
+{% for course, items in groups %}
+{% if multi %}<h2 class="order-group-title"><span class="emoji">{{ event.course_icon(course) }}</span> {{ event.course_label(course) }}</h2>{% endif %}
+{% for o in items %}
   {% set o_noun = event.course_noun(o.course) %}
   <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}"{% if o.is_skip %} data-skip{% endif %}>
-    <div class="order-no">Bestellung #{{ o.number }}{% if multi %} · {{ event.course_label(o.course) }}{% endif %} · {{ o.created_at|localtime }} Uhr</div>
+    <div class="order-no">Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
     <div class="order-item"><span class="emoji">{{ o.item_icon }}</span> {{ o.item_name }}</div>
     {% if o.options %}<div class="order-options">{% for x in o.options %}<span class="emoji">{{ x.icon }}</span> {{ x.name }}{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}
     {% if o.vegetarian %}<div><span class="badge badge-veg">🌱 Vegetarisch</span></div>{% endif %}
@@ -76,6 +78,7 @@
       </form>
     {% endif %}
   </div>
+{% endfor %}
 {% else %}
   <div class="card" style="text-align:center"><p class="muted">Du hast noch nichts bestellt.</p></div>
 {% endfor %}

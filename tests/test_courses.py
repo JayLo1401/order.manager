@@ -252,3 +252,20 @@ def test_guest_skips_starter(client, db_session, admin, setup):
     # Danach normal mit der Hauptspeise weiter
     switch(client, "main")
     assert "Jetzt Pizza bestellen" in guest.get(f"/o/{event.token}/status").text
+
+
+def test_guest_status_grouped_by_course(client, db_session, admin, setup):
+    event, guest = setup
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+    # Erst Hauptspeise, dann Vorspeise bestellen - angezeigt wird trotzdem in Gang-Reihenfolge
+    switch(client, "main")
+    guest.post(f"/o/{event.token}/order", data={"product_id": _product(db_session, admin, "Margherita").id,
+                                                "csrf_token": token})
+    switch(client, "starter")
+    guest.post(f"/o/{event.token}/order", data={"product_id": _product(db_session, admin, "Kürbiscremesuppe").id,
+                                                "csrf_token": token})
+    page = guest.get(f"/o/{event.token}/status").text
+    titles = [page.index('class="order-group-title"><span class="emoji">🥣'), page.index("</span> Hauptspeise</h2>")]
+    assert titles == sorted(titles)
+    assert page.index("Kürbiscremesuppe") < page.index("Margherita")
+    assert "Nachspeise</h2>" not in page  # leere Gaenge ohne Ueberschrift

@@ -10,7 +10,7 @@ from app.catalog.defaults import ensure_host_settings
 from app.catalog.routes import group_by_category
 from app.database import get_db
 from app.models.catalog import Ingredient, Product
-from app.models.event import Event, Guest, Order
+from app.models.event import COURSES, Event, Guest, Order
 from app.models.push import PushSubscription
 from app.models.settings import HostSettings
 from app.orders.service import (
@@ -229,9 +229,12 @@ def status_page(
     request: Request, ok: int = 0, ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)
 ):
     orders = _my_orders(db, ctx.guest)
+    # Nach Gang gruppiert (Vorspeise, Hauptspeise, Nachspeise), je Gang neueste zuerst
+    groups = [(c, [o for o in orders if o.course == c]) for c in COURSES]
     return _render(
         request, "status.html", ctx,
         orders=orders,
+        groups=[(c, items) for c, items in groups if items],
         # Hat der Gast im gerade offenen Gang schon bestellt?
         has_current=any(o.course == ctx.course and o.status != "cancelled" for o in orders),
         just_ordered=bool(ok),
