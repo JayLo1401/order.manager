@@ -187,3 +187,7 @@ scripts/             Admin-Seed, Auto-Update
 deploy/              systemd-Timer für das Auto-Update
 tests/
 ```
+
+## Lizenz
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md) – der Quellcode ist offen einsehbar, Nutzung und Änderung sind für private und nicht-kommerzielle Zwecke frei (auch für Vereine, Schulen und gemeinnützige Organisationen). **Kommerzielle Nutzung ist nicht erlaubt**, z.B. den Bestell-Manager als bezahlten Dienst anzubieten, zu verkaufen oder in einem Gastronomiebetrieb einzusetzen. Für eine kommerzielle Lizenz bitte über GitHub anfragen.

@@ -2,7 +2,11 @@
 
 Alle nennenswerten Änderungen je Version. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionsnummern nach [Semantic Versioning](https://semver.org/lang/de/).
 
-## [1.0.0] – 2026-10-16
+## [1.0.1] – 2026-10-15
+
+- Lizenz: [PolyForm Noncommercial 1.0.0](LICENSE.md) – frei für private und nicht-kommerzielle Nutzung, kommerzielle Nutzung nicht erlaubt.
+
+## [1.0.0] – 2026-10-15
 
 Erste veröffentlichte Version.
 
@@ -39,4 +43,5 @@ Erste veröffentlichte Version.
 - Docker Compose mit PostgreSQL, automatische Migrationen beim Start, optionales Auto-Update per systemd-Timer.
 - Versionsnummer in der Fußzeile der Verwaltung und unter `/healthz`.
 
+[1.0.1]: https://github.com/JayLo1401/order.manager/releases/tag/v1.0.1
 [1.0.0]: https://github.com/JayLo1401/order.manager/releases/tag/v1.0.0
