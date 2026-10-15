@@ -256,6 +256,9 @@ body.is-fullscreen .site-header { display: none; }
 .conn-dot.offline { background: var(--danger); }
 
 .tiles { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.course-group + .course-group { margin-top: 1.25rem; }
+.course-group-title { display: flex; align-items: center; gap: .5rem; margin: 0 0 .6rem; font-size: 1.15rem; color: var(--muted); }
+.course-group.is-current .course-group-title { color: var(--text); }
 .tile {
   position: relative; text-align: left; font: inherit; color: var(--text);
   background: var(--surface); border: 2px solid var(--border); border-radius: 16px;

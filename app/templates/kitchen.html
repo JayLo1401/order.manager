@@ -39,13 +39,13 @@
     </form>
   </div>
 {% else %}
-  <div id="tiles-open" class="tiles"></div>
+  <div id="tiles-open"></div>
   <div id="empty-open" class="empty" hidden><div class="big emoji">😴</div>Keine offenen Bestellungen.</div>
 
   <h2 class="section-title">
     <button class="btn btn-sm" type="button" id="done-toggle">Fertige anzeigen</button>
   </h2>
-  <div id="tiles-done" class="tiles" hidden></div>
+  <div id="tiles-done" hidden></div>
 {% endif %}
 
 {% if event and is_today %}
@@ -155,5 +155,5 @@
       readOnly: {{ 'false' if is_today else 'true' }}
     };
   </script>
-  {% if event %}<script src="/static/js/kitchen.js?v=10"></script>{% endif %}
+  {% if event %}<script src="/static/js/kitchen.js?v=11"></script>{% endif %}
 {% endblock %}

@@ -38,6 +38,7 @@ def order_to_dict(order: Order) -> dict:
         "number": order.number,
         "course": order.course,
         "course_label": order.event.course_label(order.course),
+        "course_icon": order.event.course_icon(order.course),
         "course_noun": order.event.course_noun(order.course),
         "status": order.status,
         "status_label": order.status_label,

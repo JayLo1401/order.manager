@@ -63,6 +63,27 @@
       </button>`;
   }
 
+  // Bei mehreren Gaengen je Gang eine eigene Gruppe (Vorspeise, Hauptspeise, Nachspeise)
+  function groupedTiles(list, fresh) {
+    const tiles = (items) => `<div class="tiles">${items.map((o) => tileHtml(o, fresh.has(o.id))).join("")}</div>`;
+    if (!showCourse()) return list.length ? tiles(list) : "";
+    const order = eventInfo.courses || [];
+    const courses = [...new Set(list.map((o) => o.course))]
+      .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    return courses.map((course) => {
+      const items = list.filter((o) => o.course === course);
+      const current = course === eventInfo.current_course ? " is-current" : "";
+      return `
+        <section class="course-group${current}">
+          <h2 class="course-group-title">
+            <span class="emoji">${esc(items[0].course_icon)}</span> ${esc(items[0].course_label)}
+            <span class="badge">${items.length}</span>
+          </h2>
+          ${tiles(items)}
+        </section>`;
+    }).join("");
+  }
+
   function render() {
     const open = orders.filter((o) => o.status === "new" || o.status === "in_progress");
     const closed = orders.filter((o) => o.status === "done" || o.status === "cancelled").reverse();
@@ -73,9 +94,9 @@
     if (fresh.size && soundOn) beep();
     knownIds = new Set(orders.map((o) => o.id));
 
-    $("#tiles-open").innerHTML = open.map((o) => tileHtml(o, fresh.has(o.id))).join("");
+    $("#tiles-open").innerHTML = groupedTiles(open, fresh);
     $("#empty-open").hidden = open.length > 0;
-    $("#tiles-done").innerHTML = closed.map((o) => tileHtml(o, false)).join("");
+    $("#tiles-done").innerHTML = groupedTiles(closed, new Set());
     $("#tiles-done").hidden = !showDone;
     $("#count-new").textContent = orders.filter((o) => o.status === "new").length;
     $("#count-progress").textContent = orders.filter((o) => o.status === "in_progress").length;
