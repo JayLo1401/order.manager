@@ -201,25 +201,25 @@ docker compose up -d
 ## Schritt 8 – Auto-Update-Dienst einrichten (optional)
 
 ```sh
-cp /srv/order.manager/deploy/bestell-manager-update.service /etc/systemd/system/
-cp /srv/order.manager/deploy/bestell-manager-update.timer   /etc/systemd/system/
+cp /srv/order.manager/deploy/order-manager-update.service /etc/systemd/system/
+cp /srv/order.manager/deploy/order-manager-update.timer   /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now bestell-manager-update.timer
+systemctl enable --now order-manager-update.timer
 ```
 
-Liegt das Repo nicht in `/srv/order.manager`, vorher die Pfade in `bestell-manager-update.service` anpassen.
+Liegt das Repo nicht in `/srv/order.manager`, vorher die Pfade in `order-manager-update.service` anpassen.
 
 Kontrolle:
 
 ```sh
-systemctl list-timers bestell-manager-update.timer
+systemctl list-timers order-manager-update.timer
 ```
 
 In der Spalte NEXT steht, wann der nächste Lauf ist. Einmal sofort ausführen und das Ergebnis ansehen:
 
 ```sh
-systemctl start bestell-manager-update.service
-journalctl -u bestell-manager-update.service -n 20 --no-pager
+systemctl start order-manager-update.service
+journalctl -u order-manager-update.service -n 20 --no-pager
 ```
 
 Gibt es keine Updates, steht dort nur „Finished …“. Das ist korrekt. Bei einem Update erscheint z.B.:
@@ -261,8 +261,8 @@ docker compose ps                                  # läuft alles?
 docker compose logs -f app                         # Live-Log
 tail -f data/logs/app.log                          # Logdatei der App
 sh update.sh                                       # sofort manuell aktualisieren
-systemctl stop bestell-manager-update.timer        # Auto-Update pausieren
-systemctl start bestell-manager-update.timer       # … und wieder aktivieren
+systemctl stop order-manager-update.timer         # Auto-Update pausieren
+systemctl start order-manager-update.timer        # … und wieder aktivieren
 ```
 
 ## Fehlersuche

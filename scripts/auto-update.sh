@@ -1,5 +1,5 @@
 #!/bin/sh
-# Auto-Update fuer den Server - wird vom systemd-Timer bestell-manager-update.timer
+# Auto-Update fuer den Server - wird vom systemd-Timer order-manager-update.timer
 # regelmaessig aufgerufen. Baut nur neu, wenn es auf GitHub neue Commits gibt.
 # Die DB-Migrationen laufen beim Container-Start automatisch (docker-entrypoint.sh).
 set -eu

@@ -1,5 +1,5 @@
 [Unit]
-Description=Bestell-Manager: alle 5 Minuten auf Updates pruefen
+Description=order.manager: alle 5 Minuten auf Updates pruefen
 
 [Timer]
 OnBootSec=2min

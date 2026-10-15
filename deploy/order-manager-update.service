@@ -1,5 +1,5 @@
 [Unit]
-Description=Bestell-Manager: auf neue Version pruefen und aktualisieren
+Description=order.manager: auf neue Version pruefen und aktualisieren
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
