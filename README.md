@@ -136,7 +136,7 @@ Alle Einstellungen kommen aus der `.env` (Vorlage: [.env.example](.env.example))
 
 Schritt-für-Schritt-Anleitung für einen Linux-Server mit Docker: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**
 
-Kurzfassung: Repo nach `/srv/bestell_manager` klonen, `.env` anlegen, `docker compose up -d --build`, die Domain im Reverse-Proxy auf `127.0.0.1:8001` zeigen lassen. Ein optionaler systemd-Timer prüft alle 5 Minuten auf neue Commits und aktualisiert automatisch.
+Kurzfassung: Repo nach `/srv/order.manager` klonen, `.env` anlegen, `docker compose up -d --build`, die Domain im Reverse-Proxy auf `127.0.0.1:8001` zeigen lassen. Ein optionaler systemd-Timer prüft alle 5 Minuten auf neue Commits und aktualisiert automatisch.
 
 ## Update & Migrationen
 

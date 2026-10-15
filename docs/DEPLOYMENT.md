@@ -3,8 +3,8 @@
 Diese Anleitung geht von einem Ubuntu/Debian-Server mit Docker aus. Die Platzhalter ersetzt du durch deine Werte:
 
 - Domain: `bestellung.example.com` (Verwaltung, Küchenmonitor und Gäste-Link `…/o/<code>`)
-- Repo: `https://github.com/<github-user>/bestell_manager`
-- Installationsordner: `/srv/bestell_manager`
+- Repo: `https://github.com/<github-user>/order.manager`
+- Installationsordner: `/srv/order.manager`
 - Auto-Update (optional): Ein systemd-Timer prüft alle 5 Minuten, ob es auf GitHub neue Commits gibt, und aktualisiert dann automatisch.
 
 Alle Befehle werden als **root** ausgeführt. Nach dem SSH-Login einmal `sudo -i` eingeben.
@@ -42,8 +42,8 @@ Beide Befehle sollten eine Version ausgeben. Falls nicht, Docker nach der [offiz
 ## Schritt 3 – Repo klonen
 
 ```sh
-git clone https://github.com/<github-user>/bestell_manager.git /srv/bestell_manager
-cd /srv/bestell_manager
+git clone https://github.com/<github-user>/order.manager.git /srv/order.manager
+cd /srv/order.manager
 ```
 
 **Privates Repo (z.B. eigener Fork):** Der Server braucht dann einen Lesezugriff per Deploy-Key:
@@ -57,9 +57,9 @@ Die Zeile auf GitHub unter **Settings → Deploy keys → Add deploy key** eintr
 
 ```sh
 export GIT_SSH_COMMAND="ssh -i /root/.ssh/bestell_manager_deploy -o IdentitiesOnly=yes"
-git clone git@github.com:<github-user>/bestell_manager.git /srv/bestell_manager
+git clone git@github.com:<github-user>/order.manager.git /srv/order.manager
 unset GIT_SSH_COMMAND
-cd /srv/bestell_manager
+cd /srv/order.manager
 git config core.sshCommand "ssh -i /root/.ssh/bestell_manager_deploy -o IdentitiesOnly=yes"
 git fetch && echo "Zugriff OK"
 ```
@@ -76,7 +76,7 @@ openssl rand -hex 16     # -> für POSTGRES_PASSWORD
 Dann die Datei schreiben. Die Platzhalter `<…>` durch deine Werte ersetzen:
 
 ```sh
-cat > /srv/bestell_manager/.env <<'EOF'
+cat > /srv/order.manager/.env <<'EOF'
 POSTGRES_USER=bestellung
 POSTGRES_PASSWORD=<zweiter Zufallswert>
 POSTGRES_DB=bestellung
@@ -94,7 +94,7 @@ GUEST_BASE_URL=https://bestellung.example.com
 VAPID_SUBJECT=
 TIMEZONE=Europe/Vienna
 EOF
-chmod 600 /srv/bestell_manager/.env
+chmod 600 /srv/order.manager/.env
 ```
 
 Hinweise:
@@ -107,7 +107,7 @@ Hinweise:
 ## Schritt 5 – Erster Start
 
 ```sh
-cd /srv/bestell_manager
+cd /srv/order.manager
 docker compose up -d --build
 docker compose logs -f app
 ```
@@ -166,7 +166,7 @@ docker network ls | grep -i traefik
 Dann eine `docker-compose.override.yml` anlegen. Diese Datei ist nicht im Git und überlebt deshalb jedes Update. `traefik`, `websecure` und `letsencrypt` ggf. durch die Namen von oben ersetzen:
 
 ```sh
-cat > /srv/bestell_manager/docker-compose.override.yml <<'EOF'
+cat > /srv/order.manager/docker-compose.override.yml <<'EOF'
 services:
   app:
     networks: [default, traefik]
@@ -194,20 +194,20 @@ docker compose up -d
 1. `https://bestellung.example.com` öffnen und mit `ADMIN_EMAIL` / `ADMIN_PASSWORD` anmelden.
 2. **Einstellungen → Passwort ändern**.
 3. Danach kann das Start-Passwort aus der `.env` entfernt werden:
-   `sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=/' /srv/bestell_manager/.env`
+   `sed -i 's/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=/' /srv/order.manager/.env`
    Das ist unkritisch, weil der Admin nur beim allerersten Start angelegt wird.
 4. **Link & QR-Code → Bestell-Link für heute erstellen**, den QR-Code mit dem Handy scannen und eine Testbestellung abschicken. Danach kannst du den Testtag mit „Bestelltag löschen“ wieder entfernen.
 
 ## Schritt 8 – Auto-Update-Dienst einrichten (optional)
 
 ```sh
-cp /srv/bestell_manager/deploy/bestell-manager-update.service /etc/systemd/system/
-cp /srv/bestell_manager/deploy/bestell-manager-update.timer   /etc/systemd/system/
+cp /srv/order.manager/deploy/bestell-manager-update.service /etc/systemd/system/
+cp /srv/order.manager/deploy/bestell-manager-update.timer   /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now bestell-manager-update.timer
 ```
 
-Liegt das Repo nicht in `/srv/bestell_manager`, vorher die Pfade in `bestell-manager-update.service` anpassen.
+Liegt das Repo nicht in `/srv/order.manager`, vorher die Pfade in `bestell-manager-update.service` anpassen.
 
 Kontrolle:
 
@@ -234,20 +234,20 @@ Update erfolgreich: 1a2b3c4 <Commit-Nachricht>
 ## Schritt 9 – Tägliches Datenbank-Backup (empfohlen)
 
 ```sh
-mkdir -p /srv/bestell_manager/backups
+mkdir -p /srv/order.manager/backups
 crontab -e
 ```
 
 Am Ende diese Zeile einfügen. Sie macht täglich um 3:30 Uhr ein Backup und hebt es 14 Tage auf:
 
 ```cron
-30 3 * * * cd /srv/bestell_manager && docker compose exec -T db pg_dump -U bestellung bestellung | gzip > backups/bestellung_$(date +\%F).sql.gz && find backups -name '*.sql.gz' -mtime +14 -delete
+30 3 * * * cd /srv/order.manager && docker compose exec -T db pg_dump -U bestellung bestellung | gzip > backups/bestellung_$(date +\%F).sql.gz && find backups -name '*.sql.gz' -mtime +14 -delete
 ```
 
 Wiederherstellen:
 
 ```sh
-cd /srv/bestell_manager
+cd /srv/order.manager
 gunzip -c backups/bestellung_<DATUM>.sql.gz | docker compose exec -T db psql -U bestellung bestellung
 ```
 
@@ -256,7 +256,7 @@ gunzip -c backups/bestellung_<DATUM>.sql.gz | docker compose exec -T db psql -U 
 ## Nützliche Befehle
 
 ```sh
-cd /srv/bestell_manager
+cd /srv/order.manager
 docker compose ps                                  # läuft alles?
 docker compose logs -f app                         # Live-Log
 tail -f data/logs/app.log                          # Logdatei der App

@@ -1,3 +1,8 @@
+# Fester Projektname: Container und das Datenbank-Volume
+# (bestell_manager_postgres_data) haengen sonst am Ordnernamen - ein
+# umbenannter Ordner wuerde mit einer leeren Datenbank starten.
+name: bestell_manager
+
 services:
   db:
     image: postgres:16

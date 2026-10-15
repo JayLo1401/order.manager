@@ -39,4 +39,4 @@ Erste veröffentlichte Version.
 - Docker Compose mit PostgreSQL, automatische Migrationen beim Start, optionales Auto-Update per systemd-Timer.
 - Versionsnummer in der Fußzeile der Verwaltung und unter `/healthz`.
 
-[1.0.0]: https://github.com/JayLo1401/bestell_manager/releases/tag/v1.0.0
+[1.0.0]: https://github.com/JayLo1401/order.manager/releases/tag/v1.0.0
