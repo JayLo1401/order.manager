@@ -13,14 +13,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Bestellungen">
-  <link rel="stylesheet" href="/static/css/app.css?v=12">
+  <link rel="stylesheet" href="/static/css/app.css?v=13">
   <script src="/static/js/app.js?v=2" defer></script>
   {% block head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% set path = request.url.path %}
   <header class="site-header">
-    <a class="brand" href="/"><span class="brand-icon emoji">🍕</span> Bestell-Manager</a>
+    <div class="brand">
+      <a class="brand-icon emoji" href="/" tabindex="-1" aria-hidden="true">🍕</a>
+      <div class="brand-text">
+        <a class="brand-name" href="/">Bestell-Manager</a>
+        <a class="brand-credit" href="https://order.manager.jaycloud.at" target="_blank" rel="noopener">Powered by Jay</a>
+      </div>
+    </div>
     {% if request.session.get("user_id") %}
       <button class="nav-toggle" aria-label="Menü" data-nav-toggle>&#9776;</button>
       <nav>
