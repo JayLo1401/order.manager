@@ -18,6 +18,10 @@
       </div>
       <button class="btn btn-primary btn-block" type="submit">Anmelden</button>
     </form>
+    {% if settings.oidc_enabled %}
+    <p class="muted" style="text-align:center; margin: 1rem 0 .5rem">oder</p>
+    <a class="btn btn-block" href="/login/oidc{% if next %}?next={{ next | urlencode }}{% endif %}">{{ settings.oidc_button_label }}</a>
+    {% endif %}
   </div>
   <p class="muted" style="text-align:center">Noch kein Konto? <a href="/register">Jetzt registrieren</a></p>
 </div>

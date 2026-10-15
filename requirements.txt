@@ -12,3 +12,5 @@ itsdangerous==2.2.0
 segno==1.6.6
 pywebpush==2.0.3
 tzdata==2025.2
+authlib==1.9.1
+httpx==0.28.1

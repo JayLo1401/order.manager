@@ -22,6 +22,17 @@ class Settings(BaseSettings):
 
     vapid_subject: str = ""
 
+    # Optionale Anmeldung ueber authentik (OpenID Connect), zusaetzlich zum
+    # Passwort-Login. Aktiv, sobald Issuer, Client-ID und Secret gesetzt sind.
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_button_label: str = "Mit authentik anmelden"
+
+    @property
+    def oidc_enabled(self) -> bool:
+        return bool(self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret)
+
     @property
     def guest_host(self) -> str | None:
         return urlparse(self.guest_base_url).hostname if self.guest_base_url else None

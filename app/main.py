@@ -13,6 +13,7 @@ from app import __version__
 from app.admin.routes import router as admin_router
 from app.api.routes import router as api_router
 from app.auth.dependencies import require_login
+from app.auth.oidc import router as oidc_router
 from app.auth.routes import router as auth_router
 from app.catalog.routes import router as catalog_router
 from app.config import settings
@@ -119,6 +120,7 @@ def dashboard(request: Request, db: Session = Depends(get_db), user: User = Depe
 
 
 app.include_router(auth_router)
+app.include_router(oidc_router)
 app.include_router(admin_router)
 app.include_router(catalog_router)
 app.include_router(events_router)

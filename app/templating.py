@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 
 from app import __version__
 from app.auth.dependencies import get_csrf_token
+from app.config import settings
 from app.models.catalog import KINDS
 from app.models.event import COURSES
 from app.timeutil import to_local
@@ -40,4 +41,5 @@ templates.env.globals["COURSES"] = COURSES
 templates.env.globals["KINDS"] = KINDS
 templates.env.globals["get_flashed"] = _get_flashed
 templates.env.globals["csrf_token"] = _csrf_token
+templates.env.globals["settings"] = settings
 templates.env.filters["localtime"] = _local_time
