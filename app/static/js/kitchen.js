@@ -260,11 +260,36 @@
 
   // ---------------------------------------------------------------- Bestellung erfassen
   const entryModal = $("#entry-modal");
+  const entrySelect = $("#entry-guest");
+  const NEW_GUEST = '<option value="">➕ Neuer Gast</option>';
+
+  // Neuer Gast: Name/Tisch eingeben; bestehender Gast: Felder ausblenden
+  function updateEntryFields() {
+    const existing = !!entrySelect.value;
+    $("#entry-new").hidden = existing;
+    $("#entry-new").querySelectorAll("input").forEach((input) => { input.disabled = existing; });
+  }
+
+  // Bei jedem Oeffnen frisch laden - der Monitor bleibt stundenlang offen
+  async function loadEntryGuests() {
+    try {
+      const res = await fetch("/kitchen/api/guests", { cache: "no-store" });
+      const data = await res.json();
+      entrySelect.innerHTML = NEW_GUEST
+        + data.guests.map((g) => `<option value="${g.id}">${esc(g.label)}</option>`).join("");
+    } catch (e) { /* dann eben nur "Neuer Gast" */ }
+    updateEntryFields();
+  }
+
   if (entryModal) {
-    $("#entry-open").addEventListener("click", () => {
+    $("#entry-open").addEventListener("click", async () => {
       entryModal.hidden = false;
-      $("#entry-name")?.focus();
+      if (entrySelect) {
+        await loadEntryGuests();
+        entryModal.querySelector("#entry-new input")?.focus();
+      }
     });
+    entrySelect?.addEventListener("change", updateEntryFields);
     entryModal.addEventListener("click", (ev) => {
       if (ev.target === entryModal || ev.target.closest("[data-close-entry]")) entryModal.hidden = true;
     });

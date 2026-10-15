@@ -372,3 +372,42 @@ def test_kitchen_entry_guards(client, db_session, admin):
     assert guest.post("/kitchen/entry", data={"name": "X", "csrf_token": token},
                       follow_redirects=False).status_code in (303, 401)
     assert len(db_session.scalars(select(Order)).all()) == 1
+
+
+def test_kitchen_entry_follows_settings_and_lists_guests(client, db_session, admin):
+    from app.models.event import Guest
+
+    event = _create_link(client, db_session, admin)
+    kitchen = client.get("/kitchen").text
+    assert 'id="entry-name"' in kitchen and 'id="entry-table"' not in kitchen  # Standard: nur Name
+    kitchen_csrf = csrf_from(client, "/kitchen")
+
+    _join(_guest(client), event, name="Zoe")
+    _join(_guest(client), event, name="anna")
+    assert [g["label"] for g in client.get("/kitchen/api/guests").json()["guests"]] == ["anna", "Zoe"]
+
+    # Bestehenden Gast direkt waehlen
+    zoe = db_session.scalar(select(Guest).where(Guest.name == "Zoe"))
+    response = client.post("/kitchen/entry", data={"guest_id": zoe.id, "csrf_token": kitchen_csrf},
+                           follow_redirects=False)
+    assert response.headers["location"] == f"/o/{event.token}/menu"
+    assert "für <b>Zoe</b>" in client.get(f"/o/{event.token}/menu").text
+    client.get("/kitchen/entry/cancel")
+
+    # Gast eines anderen Bestelltags -> 404
+    old = Guest(event_id=event.id + 999, name="Fremd", table_no="")
+    db_session.add(old)
+    db_session.commit()
+    assert client.post("/kitchen/entry", data={"guest_id": old.id, "csrf_token": kitchen_csrf}).status_code == 404
+
+    # Nur Tischnummer: Name wird ignoriert, Tisch ist Pflicht
+    host_settings = db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id))
+    host_settings.guest_identity = "table"
+    db_session.commit()
+    kitchen = client.get("/kitchen").text
+    assert 'id="entry-table"' in kitchen and 'id="entry-name"' not in kitchen
+    client.post("/kitchen/entry", data={"name": "Egal", "csrf_token": kitchen_csrf})
+    assert db_session.scalar(select(Guest).where(Guest.name == "Egal")) is None
+    client.post("/kitchen/entry", data={"name": "Egal", "table_no": "4", "csrf_token": kitchen_csrf})
+    guest = db_session.scalar(select(Guest).where(Guest.table_no == "4"))
+    assert guest is not None and guest.name == ""

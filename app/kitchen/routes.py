@@ -45,12 +45,16 @@ def kitchen(
     user: User = Depends(require_login),
 ):
     event = _event_for(db, user, event_id)
-    return templates.TemplateResponse(request, "kitchen.html", {"event": event, "is_today": event_id is None})
+    return templates.TemplateResponse(request, "kitchen.html", {
+        "event": event, "is_today": event_id is None,
+        "identity": ensure_host_settings(db, user.id).guest_identity,
+    })
 
 
 @router.post("/entry", dependencies=[Depends(verify_csrf)])
 def start_entry(
     request: Request,
+    guest_id: int | None = Form(None),
     name: str = Form(""),
     table_no: str = Form(""),
     db: Session = Depends(get_db),
@@ -58,17 +62,28 @@ def start_entry(
 ):
     """Bestellung fuer einen Gast erfassen, der direkt in der Kueche bestellt.
     Oeffnet die normale Gaeste-Bestellseite im Kuechen-Modus (ohne Bestell-Limit);
-    danach geht es zurueck zum Kuechenmonitor. Gibt es den Namen schon, wird
-    die Bestellung diesem Gast zugeordnet."""
+    danach geht es zurueck zum Kuechenmonitor. Entweder ein bestehender Gast
+    (guest_id) oder Name/Tisch wie in den Einstellungen; gibt es den Namen
+    schon, wird die Bestellung diesem Gast zugeordnet."""
     event = today_event(db, user)
-    name, table_no = " ".join(name.split())[:80], table_no.strip()[:20]
     if event is None:
-        return RedirectResponse("/kitchen", status_code=303)
-    if not name and not table_no:
-        flash(request, "Bitte einen Namen oder eine Tischnummer angeben.", "error")
         return RedirectResponse("/kitchen", status_code=303)
     if event.current_course is None:
         flash(request, "Bestellungen sind geschlossen – bitte zuerst oben einen Gang freigeben.", "error")
+        return RedirectResponse("/kitchen", status_code=303)
+    if guest_id:
+        guest = db.get(Guest, guest_id)
+        if guest is None or guest.event_id != event.id:
+            raise HTTPException(status_code=404)
+        start_kitchen_entry(request, event, guest)
+        return RedirectResponse(f"/o/{event.token}/menu", status_code=303)
+
+    mode = ensure_host_settings(db, user.id).guest_identity
+    name = " ".join(name.split())[:80] if mode in ("name", "name_and_table") else ""
+    table_no = table_no.strip()[:20] if mode in ("table", "name_and_table") else ""
+    if (mode in ("name", "name_and_table") and not name) or (mode in ("table", "name_and_table") and not table_no):
+        missing = {"name": "einen Namen", "table": "eine Tischnummer"}.get(mode, "Name und Tischnummer")
+        flash(request, f"Bitte {missing} angeben – oder einen bestehenden Gast wählen.", "error")
         return RedirectResponse("/kitchen", status_code=303)
     guest = find_guest(db, event, name, table_no)
     if guest is None:
@@ -77,6 +92,17 @@ def start_entry(
         db.commit()
     start_kitchen_entry(request, event, guest)
     return RedirectResponse(f"/o/{event.token}/menu", status_code=303)
+
+
+@router.get("/api/guests")
+def guests_api(db: Session = Depends(get_db), user: User = Depends(require_login_api)):
+    """Heutige Gaeste fuer die Auswahl beim Erfassen einer Bestellung."""
+    event = today_event(db, user)
+    if event is None:
+        return {"guests": []}
+    guests = db.scalars(select(Guest).where(Guest.event_id == event.id)).all()
+    items = [{"id": g.id, "label": g.label or f"Gast {g.id}"} for g in guests]
+    return {"guests": sorted(items, key=lambda g: g["label"].lower())}
 
 
 @router.get("/entry/cancel")
