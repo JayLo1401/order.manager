@@ -4,7 +4,7 @@ Selbst gehostete Web-App für Bestellungen bei Feiern und Abenden mit Freunden: 
 
 Ursprünglich für **Pizzaabende** gebaut (inkl. Wunschpizza aus Zutaten), mit **Gängen** für Vorspeise, Hauptspeise und Nachspeise.
 
-Projektseite mit Erklärung: **<https://order.manager.jaycloud.at>**
+Projektseite mit Erklärung: **<https://jaycloud.at/ordermanager>**
 
 ## Funktionen
 
