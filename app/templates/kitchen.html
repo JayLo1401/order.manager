@@ -13,13 +13,13 @@
   </div>
   <div class="actions">
     {% if event and is_today %}
-      <form method="post" action="/link/toggle" class="inline">
-        {{ m.csrf() }}<input type="hidden" name="next" value="/kitchen">
-        <button class="btn btn-sm" id="ordering-toggle">{{ '⏸️ Pause' if event.ordering_open else '▶️ Öffnen' }}</button>
-      </form>
-      <button class="btn btn-sm" type="button" id="stock-open" title="Ausgegangene Zutaten für heute markieren">
-        🥫 Zutaten <span class="badge badge-danger" id="soldout-count" hidden></span>
-      </button>
+      {{ m.course_switch(event, '/kitchen') }}
+      <button class="btn btn-sm" type="button" id="courses-open" title="Welche Gänge gibt es heute?">⚙️ Gänge</button>
+      {% if 'main' in event.courses and event.main_kind == 'pizza' %}
+        <button class="btn btn-sm" type="button" id="stock-open" title="Ausgegangene Zutaten für heute markieren">
+          🥫 Zutaten <span class="badge badge-danger" id="soldout-count" hidden></span>
+        </button>
+      {% endif %}
     {% endif %}
     <button class="btn btn-sm" type="button" id="sound-toggle" title="Ton bei neuer Bestellung">🔕 Ton aus</button>
     <button class="btn btn-sm" type="button" id="fullscreen-toggle" title="Vollbild">⛶</button>
@@ -45,6 +45,21 @@
     <button class="btn btn-sm" type="button" id="done-toggle">Fertige anzeigen</button>
   </h2>
   <div id="tiles-done" class="tiles" hidden></div>
+{% endif %}
+
+{% if event and is_today %}
+<div class="modal-backdrop" id="courses-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="courses-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="courses-title">Gänge heute</h2>
+        <p class="muted small" style="margin:.3rem 0 0">Oben in der Leiste schaltest du dann den Gang frei, der gerade bestellt werden kann.</p>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close-courses aria-label="Schließen" style="font-size:1.4rem">✕</button>
+    </div>
+    {{ m.courses_form(event, '/kitchen') }}
+  </div>
+</div>
 {% endif %}
 
 <div class="modal-backdrop" id="stock-modal" hidden>
@@ -81,7 +96,7 @@
     <div class="modal-extra" id="modal-extra" hidden>
       <div class="muted small" id="modal-extra-info"></div>
       <div class="actions">
-        <button type="button" class="btn btn-primary" id="extra-grant">🎁 Noch eine Pizza erlauben</button>
+        <button type="button" class="btn btn-primary" id="extra-grant">🎁 Noch eine erlauben</button>
         <button type="button" class="btn btn-sm" id="extra-revoke" hidden>Freigabe zurücknehmen</button>
       </div>
     </div>
@@ -96,5 +111,5 @@
       readOnly: {{ 'false' if is_today else 'true' }}
     };
   </script>
-  {% if event %}<script src="/static/js/kitchen.js?v=6"></script>{% endif %}
+  {% if event %}<script src="/static/js/kitchen.js?v=8"></script>{% endif %}
 {% endblock %}

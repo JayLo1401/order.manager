@@ -1,9 +1,10 @@
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.catalog import KINDS
 from app.timeutil import now_utc
 
 ORDER_STATUSES = {
@@ -12,6 +13,13 @@ ORDER_STATUSES = {
     "done": "Fertig",
     "cancelled": "Storniert",
 }
+
+# Gaenge in ihrer Reihenfolge. Die Kueche schaltet sie nacheinander frei
+# (Vorspeise -> geschlossen -> Hauptspeise -> geschlossen -> Nachspeise).
+COURSES = {"starter": "Vorspeise", "main": "Hauptspeise", "dessert": "Nachspeise"}
+
+# Was es als Hauptspeise gibt: Pizza (inkl. Wunschpizza) oder andere Hauptgerichte
+MAIN_KINDS = ("pizza", "main")
 
 
 class Event(Base):
@@ -26,7 +34,12 @@ class Event(Base):
     day: Mapped[date] = mapped_column(Date)
     token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(120), default="")
-    ordering_open: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Gaenge, die es an diesem Tag gibt (Reihenfolge wie in COURSES).
+    # Beim Aendern immer eine neue Liste zuweisen.
+    courses: Mapped[list] = mapped_column(JSON, default=lambda: ["main"], server_default='["main"]')
+    main_kind: Mapped[str] = mapped_column(String(20), default="pizza", server_default="pizza")
+    # Gang, der gerade bestellt werden kann; None = geschlossen
+    current_course: Mapped[str | None] = mapped_column(String(20), default="main")
     # Zutaten, die heute ausgegangen sind (im Kuechenmonitor gesetzt). Haengt am
     # Bestelltag, damit am naechsten Tag automatisch wieder alles verfuegbar ist.
     # Beim Aendern immer eine neue Liste zuweisen (sonst erkennt SQLAlchemy es nicht).
@@ -39,6 +52,24 @@ class Event(Base):
     def sold_out_ids(self) -> set[int]:
         return set(self.sold_out_ingredient_ids or [])
 
+    @property
+    def ordering_open(self) -> bool:
+        return self.current_course is not None
+
+    def kind_for(self, course: str) -> str:
+        """Speisen-Art eines Gangs (Hauptspeise: Pizza oder andere Gerichte)."""
+        return self.main_kind if course == "main" else course
+
+    def course_label(self, course: str) -> str:
+        return COURSES.get(course, course)
+
+    def course_icon(self, course: str) -> str:
+        return KINDS.get(self.kind_for(course), {}).get("icon", "🍽️")
+
+    def course_noun(self, course: str) -> str:
+        """Fuer Texte wie "Deine Pizza ist fertig" / "Deine Vorspeise ist fertig"."""
+        return "Pizza" if self.kind_for(course) == "pizza" else self.course_label(course)
+
 
 class Guest(Base):
     __tablename__ = "guests"
@@ -47,10 +78,14 @@ class Guest(Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(80), default="")
     table_no: Mapped[str] = mapped_column(String(20), default="")
-    # Zusaetzlich zum Limit aus den Einstellungen freigegebene Bestellungen
-    # ("Nachschlag", vergeben im Kuechenmonitor)
-    extra_orders: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Zusaetzlich zum Limit aus den Einstellungen freigegebene Bestellungen je
+    # Gang ("Nachschlag", vergeben im Kuechenmonitor), z.B. {"main": 1}.
+    # Beim Aendern immer ein neues dict zuweisen.
+    extra_by_course: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+    def extra_for(self, course: str | None) -> int:
+        return int((self.extra_by_course or {}).get(course, 0)) if course else 0
 
     @property
     def label(self) -> str:
@@ -67,8 +102,11 @@ class Order(Base):
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id", ondelete="CASCADE"), index=True)
     guest_id: Mapped[int] = mapped_column(ForeignKey("guests.id", ondelete="CASCADE"), index=True)
     number: Mapped[int] = mapped_column(Integer)
+    course: Mapped[str] = mapped_column(String(20), default="main", server_default="main")
     product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"))
     is_custom: Mapped[bool] = mapped_column(Boolean, default=False)
+    # "Ich moechte keine Vorspeise/Nachspeise" - fuer die Kueche nur zur Info
+    is_skip: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Momentaufnahme zum Bestellzeitpunkt, damit spaetere Aenderungen an Pizzen/
     # Zutaten bestehende Bestellungen nicht veraendern: [{"name": ..., "icon": ...}]
     item_name: Mapped[str] = mapped_column(String(120))

@@ -6,7 +6,7 @@
 {% endif %}
 <div class="card">
   {% if not ctx.event.ordering_open %}
-    <div class="flash flash-error">Bestellungen sind gerade pausiert – du kannst dich aber schon anmelden.</div>
+    <div class="flash flash-error">Gerade kann nichts bestellt werden – du kannst dich aber schon anmelden.</div>
   {% endif %}
   {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
   <form method="post" action="{{ ctx.base }}/join">

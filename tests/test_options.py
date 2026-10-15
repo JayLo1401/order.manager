@@ -99,10 +99,10 @@ def test_assign_option_from_pizza_form(client, db_session, admin):
     _create_option(client, name="Extra knusprig")
     crispy = db_session.scalar(select(ProductOption).where(ProductOption.name == "Extra knusprig"))
     salami = _pizza(db_session, admin, "Salami")
-    client.post(f"/pizzas/{salami.id}", data={
+    client.post(f"/dishes/pizza/{salami.id}", data={
         "name": salami.name, "icon": salami.icon, "description": "", "active": "1",
         "ingredient_ids": [i.id for i in salami.ingredients], "option_ids": [crispy.id],
-        "csrf_token": csrf_from(client, f"/pizzas/{salami.id}"),
+        "csrf_token": csrf_from(client, f"/dishes/pizza/{salami.id}"),
     })
     db_session.expire_all()
     assert [p.name for p in db_session.get(ProductOption, crispy.id).products] == ["Salami"]

@@ -3,9 +3,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.catalog import Ingredient, Product, ProductOption
-from app.models.event import Event, Guest, Order
+from app.models.event import COURSES, MAIN_KINDS, Event, Guest, Order
 from app.models.settings import HostSettings
-from app.push.service import collect_subscriptions, get_vapid_keys, send_push
+from app.push.service import collect_event_subscriptions, collect_subscriptions, get_vapid_keys, send_push
 from app.timeutil import now_utc, to_local
 
 # Erlaubte Statuswechsel in der Kueche. "new" zurueck ist erlaubt, falls man
@@ -19,8 +19,12 @@ KITCHEN_TRANSITIONS = {
 
 PUSH_MESSAGES = {
     "in_progress": ("Deine Bestellung ist in Arbeit 👨‍🍳", "{item} wird gerade zubereitet."),
-    "done": ("Deine Pizza ist fertig! 🍕", "{item} kann abgeholt werden. Guten Appetit!"),
+    "done": ("Deine {noun} ist fertig! {icon}", "{item} kann abgeholt werden. Guten Appetit!"),
 }
+
+
+# Gaenge, bei denen der Gast "keine, danke" waehlen kann
+SKIPPABLE_COURSES = ("starter", "dessert")
 
 
 class OrderError(Exception):
@@ -32,18 +36,22 @@ def order_to_dict(order: Order) -> dict:
     return {
         "id": order.id,
         "number": order.number,
+        "course": order.course,
+        "course_label": order.event.course_label(order.course),
+        "course_noun": order.event.course_noun(order.course),
         "status": order.status,
         "status_label": order.status_label,
         "item_name": order.item_name,
         "item_icon": order.item_icon,
         "is_custom": order.is_custom,
+        "is_skip": order.is_skip,
         "vegetarian": order.vegetarian,
         "ingredients": order.ingredients or [],
         "options": order.options or [],
         "note": order.note,
         "guest": order.guest.label if order.guest else "",
         "guest_id": order.guest_id,
-        "guest_extra_orders": order.guest.extra_orders if order.guest else 0,
+        "guest_extra_orders": order.guest.extra_for(order.course) if order.guest else 0,
         "guest_name": order.guest.name if order.guest else "",
         "table_no": order.guest.table_no if order.guest else "",
         "created_at": created.isoformat() if created else None,
@@ -51,15 +59,18 @@ def order_to_dict(order: Order) -> dict:
     }
 
 
-def active_order_count(db: Session, guest: Guest) -> int:
-    return db.scalar(
-        select(func.count(Order.id)).where(Order.guest_id == guest.id, Order.status != "cancelled")
-    ) or 0
+def active_order_count(db: Session, guest: Guest, course: str) -> int:
+    return db.scalar(select(func.count(Order.id)).where(
+        Order.guest_id == guest.id, Order.course == course, Order.status != "cancelled"
+    )) or 0
 
 
-def can_order_more(db: Session, guest: Guest, host_settings: HostSettings) -> bool:
+def can_order_more(db: Session, guest: Guest, host_settings: HostSettings, course: str | None) -> bool:
+    """Das Limit gilt pro Gang. course=None (geschlossen) -> nie."""
+    if course is None:
+        return False
     limit = host_settings.max_orders_per_guest
-    return limit == 0 or active_order_count(db, guest) < limit + guest.extra_orders
+    return limit == 0 or active_order_count(db, guest, course) < limit + guest.extra_for(course)
 
 
 def available_today(product: Product, event: Event) -> bool:
@@ -78,31 +89,35 @@ def set_sold_out(event: Event, ingredient_id: int, sold_out: bool) -> None:
     event.sold_out_ingredient_ids = sorted(ids)
 
 
-def options_for(db: Session, event: Event) -> list[ProductOption]:
-    """Alle aktiven Optionen des Gastgebers fuer diesen Bestelltag."""
+def options_for(db: Session, owner_id: int, kind: str) -> list[ProductOption]:
+    """Alle aktiven Optionen des Gastgebers fuer eine Speisen-Art."""
     return list(db.scalars(
         select(ProductOption)
-        .where(ProductOption.owner_id == event.owner_id, ProductOption.kind == event.kind,
-               ProductOption.active.is_(True))
+        .where(ProductOption.owner_id == owner_id, ProductOption.kind == kind, ProductOption.active.is_(True))
         .order_by(ProductOption.sort_order, ProductOption.name)
     ))
 
 
-def validate_options(db: Session, event: Event, product: Product | None, option_ids: list[int]) -> list[ProductOption]:
+def validate_options(
+    db: Session, event: Event, kind: str, product: Product | None, option_ids: list[int]
+) -> list[ProductOption]:
     """product=None = Wunschpizza. Unbekannte/nicht erlaubte Optionen fuehren zu
     einem Fehler statt still ignoriert zu werden - der Gast soll bekommen, was
     er ausgewaehlt hat."""
-    if not option_ids:
-        return []
-    by_id = {o.id: o for o in options_for(db, event)}
+    by_id = {o.id: o for o in options_for(db, event.owner_id, kind)}
     chosen = []
     for option_id in dict.fromkeys(option_ids):
         option = by_id.get(option_id)
         if option is None or not option.available_for(product):
-            raise OrderError("Eine gewählte Option ist für diese Pizza nicht verfügbar.")
+            raise OrderError("Eine gewählte Option ist hier nicht verfügbar.")
         chosen.append(option)
-    if sum(1 for o in chosen if o.option_group == "shape") > 1:
-        raise OrderError("Bitte wähle nur eine Form (z.B. Calzone oder Sternpizza).")
+    shapes = sum(1 for o in chosen if o.option_group == "shape")
+    if shapes > 1:
+        raise OrderError("Bitte wähle bei der Auswahl nur eine Möglichkeit (z.B. Calzone oder Sternpizza).")
+    if product is not None and product.choice_required and not shapes:
+        choices = [o.name for o in by_id.values() if o.option_group == "shape" and o.available_for(product)]
+        if choices:
+            raise OrderError(f"Bitte wähle bei {product.name} eine Möglichkeit: {', '.join(choices)}.")
     return sorted(chosen, key=lambda o: (o.option_group != "shape", o.sort_order, o.name))
 
 
@@ -115,29 +130,40 @@ def place_order(
     ingredient_ids: list[int],
     note: str,
     option_ids: list[int] | None = None,
+    skip: bool = False,
 ) -> Order:
-    if not event.ordering_open:
-        raise OrderError("Bestellungen sind gerade pausiert.")
-    if not can_order_more(db, guest, host_settings):
+    """skip=True: "Ich moechte keine Vorspeise/Nachspeise" (nur bei diesen Gaengen)."""
+    course = event.current_course
+    if course is None:
+        raise OrderError("Gerade kann nichts bestellt werden.")
+    if not can_order_more(db, guest, host_settings, course):
         raise OrderError("Du hast bereits die maximale Anzahl an Bestellungen erreicht.")
+    kind = event.kind_for(course)
 
-    if product_id:
-        if not host_settings.allow_presets:
+    if skip:
+        if course not in SKIPPABLE_COURSES:
+            raise OrderError("Die Hauptspeise kann man nicht auslassen.")
+        item_name, item_icon, is_custom = f"Keine {event.course_label(course)}", "🚫", False
+        product_id, ingredients, options, note = None, [], [], ""
+    elif product_id:
+        if kind == "pizza" and not host_settings.allow_presets:
             raise OrderError("Vorgefertigte Pizzen sind nicht verfügbar.")
         product = db.get(Product, product_id)
-        if product is None or product.owner_id != event.owner_id or not product.available:
-            raise OrderError("Diese Pizza ist leider nicht mehr verfügbar.")
+        if product is None or product.owner_id != event.owner_id or product.kind != kind or not product.available:
+            raise OrderError("Das ist leider nicht mehr verfügbar.")
         item_name, item_icon, is_custom = product.name, product.icon, False
         ingredients = product.ingredients
-        options = validate_options(db, event, product, option_ids or [])
+        options = validate_options(db, event, kind, product, option_ids or [])
     else:
+        if kind != "pizza":
+            raise OrderError("Bitte wähle etwas aus.")
         if not host_settings.allow_custom:
             raise OrderError("Wunschpizzen sind nicht verfügbar.")
         ingredients = list(db.scalars(
             select(Ingredient)
             .where(
                 Ingredient.owner_id == event.owner_id,
-                Ingredient.kind == event.kind,
+                Ingredient.kind == "pizza",
                 Ingredient.active.is_(True),
                 Ingredient.id.in_(ingredient_ids or [0]),
             )
@@ -149,7 +175,7 @@ def place_order(
             raise OrderError(f"Maximal {host_settings.max_custom_ingredients} Zutaten erlaubt.")
         item_name, item_icon, is_custom = "Wunschpizza", "✨", True
         product_id = None
-        options = validate_options(db, event, None, option_ids or [])
+        options = validate_options(db, event, kind, None, option_ids or [])
 
     sold_out = [i.name for i in ingredients if i.id in event.sold_out_ids]
     if sold_out:
@@ -164,8 +190,10 @@ def place_order(
         event_id=event.id,
         guest_id=guest.id,
         number=number,
+        course=course,
         product_id=product_id,
         is_custom=is_custom,
+        is_skip=skip,
         item_name=item_name,
         item_icon=item_icon,
         ingredients=[{"name": i.name, "icon": i.icon, "vegetarian": i.vegetarian} for i in ingredients],
@@ -178,16 +206,20 @@ def place_order(
     return order
 
 
-def change_extra_orders(db: Session, guest: Guest, event: Event, delta: int, background: BackgroundTasks | None) -> None:
-    """Nachschlag freigeben (+1) oder zuruecknehmen (-1)."""
-    guest.extra_orders = max(0, guest.extra_orders + delta)
+def change_extra_orders(
+    db: Session, guest: Guest, event: Event, course: str, delta: int, background: BackgroundTasks | None
+) -> None:
+    """Nachschlag fuer einen Gang freigeben (+1) oder zuruecknehmen (-1)."""
+    extra = dict(guest.extra_by_course or {})
+    extra[course] = max(0, extra.get(course, 0) + delta)
+    guest.extra_by_course = extra
     db.flush()
     if background is not None and delta > 0:
         subscriptions = collect_subscriptions(db, guest.id)
         if subscriptions:
             payload = {
-                "title": "Nachschlag! 🍕",
-                "body": "Es ist noch Pizza übrig – du darfst noch eine bestellen.",
+                "title": f"Nachschlag! {event.course_icon(course)}",
+                "body": f"Es ist noch {event.course_noun(course)} übrig – du darfst noch eine bestellen.",
                 "url": f"/o/{event.token}/menu",
                 "tag": f"extra-{guest.id}",
             }
@@ -208,14 +240,45 @@ def change_status(db: Session, order: Order, new_status: str, background: Backgr
         order.done_at = None
     db.flush()
 
-    if background is not None and new_status in PUSH_MESSAGES:
+    if background is not None and new_status in PUSH_MESSAGES and not order.is_skip:
         subscriptions = collect_subscriptions(db, order.guest_id)
         if subscriptions:
             title, body = PUSH_MESSAGES[new_status]
             payload = {
-                "title": title,
+                "title": title.format(noun=order.event.course_noun(order.course), icon=order.item_icon),
                 "body": body.format(item=order.item_name),
                 "url": f"/o/{order.event.token}/status",
                 "tag": f"order-{order.id}",
             }
             background.add_task(send_push, subscriptions, get_vapid_keys(db).vapid_private_pem, payload)
+
+
+def set_current_course(db: Session, event: Event, course: str | None, background: BackgroundTasks | None) -> None:
+    """Gang zum Bestellen freigeben (None = geschlossen). Startet ein Gang,
+    bekommen alle Gaeste mit aktivierter Benachrichtigung Bescheid."""
+    if course is not None and course not in event.courses:
+        raise OrderError("Diesen Gang gibt es heute nicht.")
+    previous = event.current_course
+    event.current_course = course
+    db.flush()
+    if background is not None and course is not None and course != previous:
+        subscriptions = collect_event_subscriptions(db, event.id)
+        if subscriptions:
+            payload = {
+                "title": f"{event.course_label(course)}: jetzt bestellen! {event.course_icon(course)}",
+                "body": f"Du kannst jetzt deine {event.course_noun(course)} bestellen.",
+                "url": f"/o/{event.token}/menu",
+                "tag": f"course-{event.id}",
+            }
+            background.add_task(send_push, subscriptions, get_vapid_keys(db).vapid_private_pem, payload)
+
+
+def set_courses(event: Event, courses: list[str], main_kind: str) -> None:
+    """Welche Gaenge gibt es heute, und was gibt es als Hauptspeise?"""
+    courses = [c for c in COURSES if c in courses]
+    if not courses:
+        raise OrderError("Mindestens ein Gang muss angeboten werden.")
+    event.courses = courses
+    event.main_kind = main_kind if main_kind in MAIN_KINDS else "pizza"
+    if event.current_course not in courses:
+        event.current_course = None

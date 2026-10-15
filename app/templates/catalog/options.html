@@ -1,17 +1,20 @@
 {% extends "base.html" %}
+{% set info = KINDS[kind] %}
 {% block title %}Optionen – Bestell-Manager{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>Optionen</h1>
 </div>
+{{ m.kind_tabs(kind, '/options?kind=%s') }}
 <p class="muted">
-  Zubereitungs-Optionen wie „als Calzone“, „als Sternpizza“ oder „mit Käserand“. Der Gast wird vor dem Abschließen der Bestellung danach gefragt.
+  Zubereitungs-Optionen wie „als Calzone“, „mit Käserand“ oder bei der Nachspeise „Vanilleeis“ und „mit Schokosauce“.
+  Der Gast wird vor dem Abschließen der Bestellung danach gefragt.
 </p>
 
 <div class="card">
   <h2>Neue Option</h2>
   <form method="post" action="/options">
-    {{ m.csrf() }}
+    {{ m.csrf() }}<input type="hidden" name="kind" value="{{ kind }}">
     <div class="form-row">
       <div class="field">
         <label for="name">Name</label>
@@ -28,11 +31,11 @@
     </div>
     <div class="field">
       <label>Art</label>
-      <label class="check"><input type="radio" name="option_group" value="shape" checked> <span><b>Form</b> – Gast kann nur eine wählen (z.B. Calzone, Sternpizza)</span></label>
-      <label class="check"><input type="radio" name="option_group" value="extra"> <span><b>Extra</b> – beliebig kombinierbar (z.B. Käserand, extra knusprig)</span></label>
+      <label class="check"><input type="radio" name="option_group" value="shape" checked> <span><b>Auswahl</b> – Gast kann nur eine wählen (z.B. Calzone/Sternpizza, Vanille-/Erdbeereis)</span></label>
+      <label class="check"><input type="radio" name="option_group" value="extra"> <span><b>Extra</b> – beliebig kombinierbar (z.B. Käserand, mit Schokosauce)</span></label>
     </div>
-    <label class="check"><input type="checkbox" name="all_products" value="1" checked> Bei allen Pizzen verfügbar (auch bei der Wunschpizza)</label>
-    <p class="muted small">Ohne Haken ordnest du die Option im nächsten Schritt einzelnen Pizzen zu – bei der Wunschpizza ist sie dann nicht wählbar.</p>
+    <label class="check"><input type="checkbox" name="all_products" value="1" {{ 'checked' if kind == 'pizza' }}> Bei allen {{ info.plural }} verfügbar{% if kind == 'pizza' %} (auch bei der Wunschpizza){% endif %}</label>
+    <p class="muted small">Ohne Haken ordnest du die Option im nächsten Schritt einzelnen {{ info.plural }} zu{% if kind == 'pizza' %} – bei der Wunschpizza ist sie dann nicht wählbar{% endif %}.</p>
     <button class="btn btn-primary" type="submit">Hinzufügen</button>
   </form>
 </div>
@@ -51,9 +54,9 @@
         <b>{{ o.name }}</b> <span class="badge {{ 'badge-primary' if o.option_group == 'shape' else '' }}">{{ o.group_label }}</span>
         {% if o.description %}<small>{{ o.description }}</small>{% endif %}
         <small>
-          {% if o.all_products %}Bei allen Pizzen inkl. Wunschpizza
+          {% if o.all_products %}Bei allen {{ info.plural }}{% if kind == 'pizza' %} inkl. Wunschpizza{% endif %}
           {% elif o.products %}Nur bei: {{ o.products|map(attribute='name')|join(', ') }}
-          {% else %}<span style="color:var(--danger)">Noch keiner Pizza zugeordnet – für Gäste nicht sichtbar</span>{% endif %}
+          {% else %}<span style="color:var(--danger)">Noch nirgends zugeordnet – für Gäste nicht sichtbar</span>{% endif %}
         </small>
       </span>
       <form method="post" action="/options/{{ o.id }}/toggle" class="inline">
@@ -69,7 +72,7 @@
   {% endfor %}
 </div>
 {% else %}
-  <div class="empty"><div class="big emoji">🥟</div>Noch keine Optionen angelegt.</div>
+  <div class="empty"><div class="big emoji">{{ info.icon }}</div>Noch keine Optionen für {{ info.plural }} angelegt.</div>
 {% endif %}
 {% endblock %}
 {% block scripts %}<script src="/static/js/sortable.js?v=1"></script>{% endblock %}

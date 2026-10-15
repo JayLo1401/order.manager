@@ -25,8 +25,27 @@
   }
 
   const optionsText = (o) => (o.options || []).map((x) => `${x.icon} ${x.name}`.trim()).join(" · ");
+  // Gang nur anzeigen, wenn es heute mehrere gibt
+  const showCourse = () => (eventInfo.courses || []).length > 1;
+
+  // "Keine Vorspeise/Nachspeise": nur zur Info, ein Tipp = erledigt
+  const isQuickDone = (o) => o.is_skip && !cfg.readOnly && (o.status === "new" || o.status === "in_progress");
+
+  function skipTileHtml(o, fresh) {
+    return `
+      <button type="button" class="tile tile-skip tile-${o.status}${fresh ? " fresh" : ""}" data-id="${o.id}">
+        <div class="tile-top">
+          <span class="tile-number">#${o.number}</span>
+          <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
+        </div>
+        <div class="tile-guest">${esc(o.guest || "Gast")}</div>
+        <div class="tile-item"><span class="emoji">🚫</span> ${esc(o.item_name)}</div>
+        ${isQuickDone(o) ? '<div class="tile-skip-hint">Antippen = erledigt</div>' : ""}
+      </button>`;
+  }
 
   function tileHtml(o, fresh) {
+    if (o.is_skip) return skipTileHtml(o, fresh);
     const icons = o.ingredients.map((i) => i.icon).filter(Boolean).join("");
     return `
       <button type="button" class="tile tile-${o.status}${fresh ? " fresh" : ""}" data-id="${o.id}">
@@ -34,6 +53,7 @@
           <span class="tile-number">#${o.number}</span>
           <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
         </div>
+        ${showCourse() ? `<div class="tile-course">${esc(o.course_label)}</div>` : ""}
         <div class="tile-guest">${esc(o.guest || "Gast")}${o.guest_extra_orders ? ` <span title="Nachschlag freigegeben">🎁${o.guest_extra_orders > 1 ? o.guest_extra_orders : ""}</span>` : ""}</div>
         <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}${o.vegetarian ? ' <span class="badge badge-veg">🌱</span>' : ""}</div>
         ${optionsText(o) ? `<div class="tile-options">${esc(optionsText(o))}</div>` : ""}
@@ -77,6 +97,7 @@
       orders = data.orders;
       eventInfo = data.event || {};
       updateSoldOutBadge(eventInfo.sold_out_count || 0);
+      updateCourseSwitch(eventInfo.current_course || "");
       $("#conn").classList.remove("offline");
       render();
     } catch (e) {
@@ -108,7 +129,7 @@
   };
 
   function fillModal(o) {
-    $("#modal-number").textContent = `Bestellung #${o.number} · ${o.status_label}`;
+    $("#modal-number").textContent = `Bestellung #${o.number} · ${showCourse() ? `${o.course_label} · ` : ""}${o.status_label}`;
     $("#modal-title").innerHTML = `<span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}`;
     $("#modal-guest").textContent = (o.guest || "Gast") + (o.vegetarian ? " · 🌱 vegetarisch" : "");
     $("#modal-options").hidden = !optionsText(o);
@@ -136,12 +157,14 @@
     $("#modal-extra").hidden = !showExtra;
     if (showExtra) {
       const extra = o.guest_extra_orders || 0;
+      const noun = o.course_noun || "Pizza";
       $("#modal-extra-info").textContent = extra
-        ? `Nachschlag für ${o.guest || "diesen Gast"}: ${extra} zusätzliche Pizza${extra > 1 ? "s" : ""} freigegeben.`
-        : `Pizza übrig? ${o.guest || "Dieser Gast"} darf dann noch eine bestellen.`;
+        ? `Nachschlag für ${o.guest || "diesen Gast"}: ${extra} zusätzliche ${noun} freigegeben.`
+        : `${noun} übrig? ${o.guest || "Dieser Gast"} darf dann noch eine bestellen.`;
+      $("#extra-grant").textContent = `🎁 Noch eine ${noun} erlauben`;
       $("#extra-revoke").hidden = extra === 0;
-      $("#extra-grant").onclick = (ev) => setExtra(o.guest_id, 1, ev.currentTarget);
-      $("#extra-revoke").onclick = (ev) => setExtra(o.guest_id, -1, ev.currentTarget);
+      $("#extra-grant").onclick = (ev) => setExtra(o.guest_id, o.course, 1, ev.currentTarget);
+      $("#extra-revoke").onclick = (ev) => setExtra(o.guest_id, o.course, -1, ev.currentTarget);
     }
   }
 
@@ -168,13 +191,13 @@
     load();
   }
 
-  async function setExtra(guestId, delta, btn) {
+  async function setExtra(guestId, course, delta, btn) {
     btn.disabled = true;
     try {
       const res = await fetch(`/kitchen/api/guests/${guestId}/extra`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": cfg.csrf },
-        body: JSON.stringify({ delta }),
+        body: JSON.stringify({ delta, course }),
       });
       if (!res.ok) alert("Aktion fehlgeschlagen.");
     } catch (e) {
@@ -214,6 +237,25 @@
     }
     closeModal();
     load();
+  }
+
+  // ---------------------------------------------------------------- Gaenge
+  // Aktiven Gang markieren - auch wenn er auf einem anderen Geraet umgeschaltet wurde
+  function updateCourseSwitch(current) {
+    document.querySelectorAll(".course-switch [data-course]").forEach((btn) => {
+      const on = btn.dataset.course === current;
+      btn.classList.toggle("btn-primary", on && current !== "");
+      btn.classList.toggle("btn-warn", on && current === "");
+      btn.setAttribute("aria-pressed", String(on));
+    });
+  }
+
+  const coursesModal = $("#courses-modal");
+  if (coursesModal) {
+    $("#courses-open").addEventListener("click", () => { coursesModal.hidden = false; });
+    coursesModal.addEventListener("click", (ev) => {
+      if (ev.target === coursesModal || ev.target.closest("[data-close-courses]")) coursesModal.hidden = true;
+    });
   }
 
   // ---------------------------------------------------------------- Zutaten "heute aus"
@@ -316,13 +358,19 @@
   // ---------------------------------------------------------------- Events
   document.addEventListener("click", (ev) => {
     const tile = ev.target.closest(".tile");
-    if (tile) { openModal(Number(tile.dataset.id)); return; }
+    if (tile) {
+      const o = orders.find((x) => x.id === Number(tile.dataset.id));
+      if (o && isQuickDone(o)) setStatus(o.id, "done", tile);
+      else openModal(Number(tile.dataset.id));
+      return;
+    }
     if (ev.target.closest("[data-close]") || ev.target === $("#modal")) closeModal();
   });
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     closeModal();
     if (stockModal) stockModal.hidden = true;
+    if (coursesModal) coursesModal.hidden = true;
   });
 
   $("#done-toggle").addEventListener("click", () => {

@@ -83,6 +83,22 @@ DEFAULT_OPTIONS: list[tuple[str, str, str, str, bool]] = [
     ("Calzone", "🥟", "Zusammengeklappt gebacken – Belag innen", "shape", True),
 ]
 
+# Gerichte fuer die anderen Gaenge: Speisen-Art -> [(Name, Symbol, Auswahl Pflicht)]
+DEFAULT_DISHES: dict[str, list[tuple[str, str, bool]]] = {
+    "starter": [("Kürbiscremesuppe", "🎃", False)],
+    "dessert": [("Eispalatschinke", "🥞", True)],
+}
+
+# Optionen dazu, jeweils nur beim genannten Gericht:
+# Speisen-Art -> [(Name, Symbol, Art, Gericht)]
+DEFAULT_DISH_OPTIONS: dict[str, list[tuple[str, str, str, str]]] = {
+    "dessert": [
+        ("Vanilleeis", "🍦", "shape", "Eispalatschinke"),
+        ("Erdbeereis", "🍓", "shape", "Eispalatschinke"),
+        ("mit Schokosauce", "🍫", "extra", "Eispalatschinke"),
+    ],
+}
+
 
 def ensure_host_settings(db: Session, owner_id: int) -> HostSettings:
     host_settings = db.scalar(select(HostSettings).where(HostSettings.owner_id == owner_id))
@@ -114,16 +130,19 @@ def add_missing_default_ingredients(db: Session, owner_id: int) -> int:
     return added
 
 
+def _has_any(db: Session, model, owner_id: int, kind: str) -> bool:
+    return db.scalar(select(model.id).where(model.owner_id == owner_id, model.kind == kind).limit(1)) is not None
+
+
 def seed_catalog(db: Session, owner_id: int) -> None:
-    """Idempotent: legt Einstellungen, Zutaten, Pizzen und Optionen nur an,
-    wenn der Gastgeber noch keine hat."""
+    """Idempotent: legt Einstellungen, Zutaten, Gerichte und Optionen je
+    Speisen-Art nur an, wenn der Gastgeber dort noch keine hat."""
     ensure_host_settings(db, owner_id)
     has_ingredients = db.scalar(select(Ingredient.id).where(Ingredient.owner_id == owner_id).limit(1))
     if has_ingredients is None:
         add_missing_default_ingredients(db, owner_id)
 
-    has_products = db.scalar(select(Product.id).where(Product.owner_id == owner_id).limit(1))
-    if has_products is None:
+    if not _has_any(db, Product, owner_id, "pizza"):
         by_name = {
             i.name: i for i in db.scalars(select(Ingredient).where(Ingredient.owner_id == owner_id))
         }
@@ -134,11 +153,32 @@ def seed_catalog(db: Session, owner_id: int) -> None:
                 ingredients=[by_name[n] for n in ingredient_names if n in by_name],
             ))
 
-    has_options = db.scalar(select(ProductOption.id).where(ProductOption.owner_id == owner_id).limit(1))
-    if has_options is None:
+    if not _has_any(db, ProductOption, owner_id, "pizza"):
         for index, (name, icon, description, group, all_products) in enumerate(DEFAULT_OPTIONS):
             db.add(ProductOption(
                 owner_id=owner_id, kind="pizza", name=name, icon=icon, description=description,
                 option_group=group, active=True, all_products=all_products, sort_order=(index + 1) * 10,
+            ))
+
+    for kind, dishes in DEFAULT_DISHES.items():
+        if not _has_any(db, Product, owner_id, kind):
+            for index, (name, icon, choice_required) in enumerate(dishes):
+                db.add(Product(
+                    owner_id=owner_id, kind=kind, name=name, icon=icon, description="",
+                    active=True, choice_required=choice_required, sort_order=(index + 1) * 10,
+                ))
+    db.flush()
+
+    for kind, options in DEFAULT_DISH_OPTIONS.items():
+        if _has_any(db, ProductOption, owner_id, kind):
+            continue
+        by_name = {p.name: p for p in db.scalars(
+            select(Product).where(Product.owner_id == owner_id, Product.kind == kind)
+        )}
+        for index, (name, icon, group, dish) in enumerate(options):
+            db.add(ProductOption(
+                owner_id=owner_id, kind=kind, name=name, icon=icon, description="", option_group=group,
+                active=True, all_products=False, sort_order=(index + 1) * 10,
+                products=[by_name[dish]] if dish in by_name else [],
             ))
     db.flush()

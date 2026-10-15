@@ -24,6 +24,51 @@
 </label>
 {% endmacro %}
 
+{# Reiter fuer die Speisen-Arten; url ist ein Muster mit %s fuer die Art #}
+{% macro kind_tabs(active, url) %}
+<nav class="kind-tabs" aria-label="Speisen-Art">
+  {% for k, info in KINDS.items() %}
+    <a class="btn btn-sm {{ 'btn-primary' if k == active }}" href="{{ url % k }}" {% if k == active %}aria-current="page"{% endif %}>
+      <span class="emoji">{{ info.icon }}</span> {{ info.plural }}
+    </a>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{# Welcher Gang kann gerade bestellt werden? Ein Knopf pro Gang + "Geschlossen". #}
+{% macro course_switch(event, next) %}
+<form method="post" action="/link/course" class="course-switch" role="group" aria-label="Gerade bestellbar">
+  {{ csrf() }}<input type="hidden" name="next" value="{{ next }}">
+  {% for c in event.courses %}
+    <button class="btn btn-sm {{ 'btn-primary' if event.current_course == c }}" name="course" value="{{ c }}"
+            data-course="{{ c }}" aria-pressed="{{ 'true' if event.current_course == c else 'false' }}">
+      <span class="emoji">{{ event.course_icon(c) }}</span> {{ event.course_label(c) }}
+    </button>
+  {% endfor %}
+  <button class="btn btn-sm {{ 'btn-warn' if not event.current_course }}" name="course" value=""
+          data-course="" aria-pressed="{{ 'false' if event.current_course else 'true' }}">⛔ Geschlossen</button>
+</form>
+{% endmacro %}
+
+{# Welche Gaenge gibt es heute, und was gibt es als Hauptspeise? #}
+{% macro courses_form(event, next) %}
+<form method="post" action="/link/courses">
+  {{ csrf() }}<input type="hidden" name="next" value="{{ next }}">
+  {% for c, label in COURSES.items() %}
+    <label class="check"><input type="checkbox" name="courses" value="{{ c }}" {{ 'checked' if c in event.courses }}>
+      <span><b>{{ label }}</b>{% if c != 'main' %} <span class="emoji">{{ KINDS[c].icon }}</span>{% endif %}</span></label>
+    {% if c == 'main' %}
+      <div class="course-main-kind">
+        <label class="check"><input type="radio" name="main_kind" value="pizza" {{ 'checked' if event.main_kind == 'pizza' }}> <span class="emoji">🍕</span> Pizza</label>
+        <label class="check"><input type="radio" name="main_kind" value="main" {{ 'checked' if event.main_kind == 'main' }}> <span class="emoji">🍽️</span> Andere Hauptgerichte</label>
+      </div>
+    {% endif %}
+  {% endfor %}
+  <p class="muted small">Was es bei den einzelnen Gängen gibt, pflegst du unter <a href="/dishes/starter">Speisen</a>.</p>
+  <button class="btn btn-primary" type="submit">Gänge speichern</button>
+</form>
+{% endmacro %}
+
 {% macro flashes() %}
   {% for f in get_flashed() %}
     <div class="flash flash-{{ f.category }}">{{ f.message }}</div>

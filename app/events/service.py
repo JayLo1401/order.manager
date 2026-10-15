@@ -25,7 +25,8 @@ def get_or_create_today_event(db: Session, user: User, kind: str = "pizza") -> E
         host_settings = ensure_host_settings(db, user.id)
         event = Event(
             owner_id=user.id, kind=kind, day=today_local(),
-            token=generate_token(24), title=host_settings.event_title, ordering_open=True,
+            token=generate_token(24), title=host_settings.event_title,
+            courses=["main"], main_kind="pizza", current_course="main",
         )
         db.add(event)
         db.flush()

@@ -1,7 +1,13 @@
 {% extends "guest/guest_base.html" %}
-{% set steps = [('new', '📝', 'Eingegangen'), ('in_progress', '👨‍🍳', 'In Zubereitung'), ('done', '🍕', 'Fertig')] %}
 {% set step_index = {'new': 0, 'in_progress': 1, 'done': 2} %}
 {% block content %}
+{% set event = ctx.event %}
+{% set course = ctx.course %}
+{% set multi = event.courses|length > 1 %}
+{% if course %}
+  {% set noun = event.course_noun(course) %}
+  {% set extra = ctx.guest.extra_for(course) %}
+{% endif %}
 {% if just_ordered %}
   <div class="success">
     <div class="big emoji">✅</div>
@@ -12,39 +18,51 @@
 
 <p class="guest-who">{{ ctx.guest.label }}</p>
 
-{% if can_order_more and ctx.guest.extra_orders and orders %}
+{% if can_order_more and orders and not has_current %}
+  <div class="extra-hint">
+    <div class="big emoji">{{ event.course_icon(course) }}</div>
+    <h2 style="margin:.3rem 0">{{ event.course_label(course) }}</h2>
+    <p>Du kannst jetzt deine {{ noun }} bestellen.</p>
+    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt {{ noun }} bestellen</a>
+  </div>
+{% elif can_order_more and has_current and extra %}
   <div class="extra-hint">
     <div class="big emoji">🎁</div>
     <h2 style="margin:.3rem 0">Nachschlag!</h2>
-    <p>Es ist noch Pizza übrig – du darfst noch eine bestellen.</p>
-    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt noch eine Pizza bestellen</a>
+    <p>Es ist noch {{ noun }} übrig – du darfst noch eine bestellen.</p>
+    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt noch eine {{ noun }} bestellen</a>
   </div>
 {% endif %}
 
-<div id="orders" data-status-url="{{ ctx.base }}/api/status" data-can-order="{{ 1 if can_order_more else 0 }}">
+<div id="orders" data-status-url="{{ ctx.base }}/api/status" data-can-order="{{ 1 if can_order_more else 0 }}" data-course="{{ course or '' }}">
 {% for o in orders %}
-  <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}">
-    <div class="order-no">Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
+  {% set o_noun = event.course_noun(o.course) %}
+  <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}"{% if o.is_skip %} data-skip{% endif %}>
+    <div class="order-no">Bestellung #{{ o.number }}{% if multi %} · {{ event.course_label(o.course) }}{% endif %} · {{ o.created_at|localtime }} Uhr</div>
     <div class="order-item"><span class="emoji">{{ o.item_icon }}</span> {{ o.item_name }}</div>
     {% if o.options %}<div class="order-options">{% for x in o.options %}<span class="emoji">{{ x.icon }}</span> {{ x.name }}{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}
     {% if o.vegetarian %}<div><span class="badge badge-veg">🌱 Vegetarisch</span></div>{% endif %}
-    <div class="order-icons emoji">{% for i in o.ingredients %}{{ i.icon }}{% endfor %}</div>
-    <div class="muted small">{% for i in o.ingredients %}{{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
+    {% if o.ingredients %}
+      <div class="order-icons emoji">{% for i in o.ingredients %}{{ i.icon }}{% endfor %}</div>
+      <div class="muted small">{% for i in o.ingredients %}{{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
+    {% endif %}
     {% if o.note %}<div class="muted small">💬 {{ o.note }}</div>{% endif %}
 
     {% if o.status == 'cancelled' %}
       <div class="big-status">Storniert</div>
+    {% elif o.is_skip %}
+      <div class="big-status">Alles klar – die Küche weiß Bescheid.</div>
     {% else %}
       {% set current = step_index[o.status] %}
       <div class="steps">
-        {% for key, icon, label in steps %}
+        {% for key, icon, label in [('new', '📝', 'Eingegangen'), ('in_progress', '👨‍🍳', 'In Zubereitung'), ('done', o.item_icon or '✅', 'Fertig')] %}
           <div class="step {{ 'reached' if loop.index0 <= current }} {{ 'current' if loop.index0 == current and o.status != 'done' }}">
             <div class="dot emoji">{{ icon }}</div>{{ label }}
           </div>
         {% endfor %}
       </div>
       {% if o.status == 'done' %}
-        <div class="big-status">Deine Pizza ist fertig – guten Appetit! 🎉</div>
+        <div class="big-status">Deine {{ o_noun }} ist fertig – guten Appetit! 🎉</div>
       {% elif o.status == 'in_progress' %}
         <div class="big-status">Wird gerade zubereitet …</div>
       {% else %}
@@ -65,17 +83,19 @@
 
 {% if orders %}
 <div class="card" id="notify-card" hidden data-vapid-key="{{ vapid_public_key }}" data-push-url="{{ ctx.base }}/push" data-csrf="{{ csrf_token() }}">
-  <p style="margin-bottom:.5rem"><strong>🔔 Benachrichtigung, wenn deine Pizza fertig ist?</strong></p>
+  <p style="margin-bottom:.5rem"><strong>🔔 Benachrichtigung, wenn deine Bestellung fertig ist?</strong></p>
   <button class="btn btn-primary btn-block" type="button" id="notify-btn">Benachrichtigung aktivieren</button>
   <p class="muted small" id="notify-hint" style="margin:.5rem 0 0"></p>
 </div>
 {% endif %}
 
-{% if can_order_more and not (ctx.guest.extra_orders and orders) %}
-  <a class="btn btn-block" href="{{ ctx.base }}/menu">+ Weitere Pizza bestellen</a>
-{% elif not ctx.event.ordering_open %}
-  <p class="muted" style="text-align:center">Bestellungen sind gerade pausiert.</p>
+{% if can_order_more and not orders %}
+  <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt {{ noun }} bestellen</a>
+{% elif can_order_more and has_current and not extra %}
+  <a class="btn btn-block" href="{{ ctx.base }}/menu">+ Weitere {{ noun }} bestellen</a>
+{% elif not event.ordering_open %}
+  <p class="muted" style="text-align:center">Gerade kann nichts bestellt werden – sobald es weitergeht, kannst du hier bestellen.</p>
 {% endif %}
 <p class="muted small" style="text-align:center;margin-top:1rem">Diese Seite aktualisiert sich automatisch.</p>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=7"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=8"></script>{% endblock %}

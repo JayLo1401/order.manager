@@ -1,4 +1,4 @@
-// Gaeste-Seiten: Wunschpizza-Auswahl, Live-Status und Benachrichtigungen.
+// Gaeste-Seiten: Wunschpizza-Auswahl, Optionen, Live-Status und Benachrichtigungen.
 (function () {
   "use strict";
   const $ = (sel) => document.querySelector(sel);
@@ -35,15 +35,17 @@
   }
 
   // ---------------------------------------------------------------- Optionen
-  // Vor dem Absenden: Gibt es fuer die gewaehlte Pizza Optionen (Calzone,
-  // Kaeserand ...), fragt ein Fenster danach. Sonst wird direkt bestellt.
+  // Vor dem Absenden: Gibt es fuer das gewaehlte Gericht Optionen (Calzone,
+  // Kaeserand, Eissorte ...), fragt ein Fenster danach. Sonst wird direkt bestellt.
   const sheet = $("#options-sheet");
   const orderForm = sheet && sheet.closest("form");
   if (orderForm) {
     // Pizza-Auswahl: {pizza_id: [option_ids]}; Wunschpizza: kein Mapping = alle angezeigten
     const map = orderForm.dataset.productOptions ? JSON.parse(orderForm.dataset.productOptions) : null;
     const confirmBtn = sheet.querySelector("[data-options-confirm]");
+    const requiredHint = sheet.querySelector("[data-options-required]");
     let confirmed = false;
+    let choiceRequired = false;
 
     const allowedIds = () => {
       if (!map) return null;
@@ -64,23 +66,34 @@
       sheet.querySelectorAll("[data-option-section]").forEach((section) => {
         section.hidden = !section.querySelector("[data-option-id]:not([hidden])");
       });
-      if (!visible) return; // keine Optionen fuer diese Pizza -> direkt bestellen
+      if (!visible) return; // keine Optionen fuer dieses Gericht -> direkt bestellen
       ev.preventDefault();
+      // Pflicht-Auswahl (z.B. Eissorte), sofern es fuer das Gericht eine gibt
+      const product = orderForm.querySelector('input[name="product_id"]:checked');
+      choiceRequired = !!(product && product.dataset.choiceRequired === "1"
+        && sheet.querySelector('[data-option-id]:not([hidden]) input[data-group="shape"]'));
+      sheet.querySelector("[data-options-optional]").hidden = choiceRequired;
+      requiredHint.hidden = true;
       sheet.hidden = false;
       confirmBtn.focus();
     });
 
-    // "Form": hoechstens eine (Calzone ODER Sternpizza)
+    // "Auswahl": hoechstens eine (Calzone ODER Sternpizza, Vanille- ODER Erdbeereis)
     sheet.addEventListener("change", (ev) => {
       const box = ev.target;
       if (box.checked && box.dataset.group === "shape") {
         sheet.querySelectorAll('input[data-group="shape"]').forEach((other) => {
           if (other !== box) other.checked = false;
         });
+        requiredHint.hidden = true;
       }
     });
 
     confirmBtn.addEventListener("click", () => {
+      if (choiceRequired && !sheet.querySelector('input[data-group="shape"]:checked')) {
+        requiredHint.hidden = false;
+        return;
+      }
       confirmed = true;
       confirmBtn.disabled = true;
       confirmBtn.textContent = "Wird gesendet …";
@@ -143,7 +156,7 @@
     if ("Notification" in window && Notification.permission === "granted" && navigator.serviceWorker) {
       const reg = await navigator.serviceWorker.ready;
       // Gleicher Tag wie beim Server-Push -> keine doppelte Meldung
-      reg.showNotification("Deine Pizza ist fertig! 🍕", {
+      reg.showNotification(`Deine ${order.course_noun || "Bestellung"} ist fertig! ${order.item_icon || ""}`.trim(), {
         body: `${order.item_name} kann abgeholt werden.`,
         icon: "/static/img/icon-192.png",
         tag: `order-${order.id}`,
@@ -166,10 +179,12 @@
         for (const o of data.orders) {
           if (known[o.id] !== o.status) {
             changed = true;
-            if (o.status === "done" && known[o.id] !== undefined) await localNotify(o);
+            if (o.status === "done" && !o.is_skip && known[o.id] !== undefined) await localNotify(o);
           }
         }
         const couldOrder = ordersEl.dataset.canOrder === "1";
+        // Kueche hat den Gang gewechselt bzw. geschlossen
+        if ((data.current_course || "") !== ordersEl.dataset.course) changed = true;
         if (data.can_order_more && !couldOrder) {
           // Nachschlag aus der Kueche freigegeben
           if (navigator.vibrate) navigator.vibrate([150, 80, 150]);
@@ -199,7 +214,9 @@
   const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-  const allDone = Object.values(known).every((s) => s === "done" || s === "cancelled");
+  // "Keine Vorspeise" braucht keine Benachrichtigung
+  const allDone = Array.from(ordersEl.querySelectorAll("[data-order-id]:not([data-skip])"))
+    .every((el) => el.dataset.status === "done" || el.dataset.status === "cancelled");
 
   function urlBase64ToUint8Array(base64) {
     const padding = "=".repeat((4 - (base64.length % 4)) % 4);
@@ -231,7 +248,7 @@
       });
       if (!res.ok) throw new Error(res.status);
       btn.hidden = true;
-      hint.textContent = "✓ Aktiv – du bekommst eine Nachricht, sobald deine Pizza fertig ist.";
+      hint.textContent = "✓ Aktiv – du bekommst eine Nachricht, sobald deine Bestellung fertig ist.";
     } catch (e) {
       hint.textContent = "Benachrichtigung konnte nicht aktiviert werden. Lass diese Seite offen – sie aktualisiert sich automatisch.";
       btn.disabled = false;

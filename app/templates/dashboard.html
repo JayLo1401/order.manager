@@ -19,8 +19,8 @@
   {% if event %}
     <p>
       <strong>{{ event.title }}</strong> –
-      {% if event.ordering_open %}<span class="badge badge-ok">Bestellungen offen</span>
-      {% else %}<span class="badge badge-warn">Bestellungen pausiert</span>{% endif %}
+      {% if event.current_course %}<span class="badge badge-ok">Bestellbar: {{ event.course_label(event.current_course) }}</span>
+      {% else %}<span class="badge badge-warn">Bestellungen geschlossen</span>{% endif %}
     </p>
     <div class="grid" style="margin-bottom:1rem">
       <div class="card stat"><div class="value">{{ counts.get('new', 0) }}</div><div class="label">Eingegangen</div></div>
@@ -43,7 +43,7 @@
 
 <div class="grid">
   <a class="card tile-link" href="/link"><span class="big-icon emoji">🔗</span><span><strong>Link &amp; QR-Code</strong><span class="muted small">Für WhatsApp oder zum Ausdrucken</span></span></a>
-  <a class="card tile-link" href="/pizzas"><span class="big-icon emoji">🍕</span><span><strong>Pizzen</strong><span class="muted small">Vorgefertigte Pizzen verwalten</span></span></a>
+  <a class="card tile-link" href="/dishes/pizza"><span class="big-icon emoji">🍕</span><span><strong>Speisen</strong><span class="muted small">Vorspeisen, Pizzen, Hauptgerichte, Nachspeisen</span></span></a>
   <a class="card tile-link" href="/ingredients"><span class="big-icon emoji">🍅</span><span><strong>Zutaten</strong><span class="muted small">Aktivieren, hinzufügen, löschen</span></span></a>
   <a class="card tile-link" href="/settings"><span class="big-icon emoji">⚙️</span><span><strong>Einstellungen</strong><span class="muted small">Gäste-Angaben, Bestell-Limit …</span></span></a>
 </div>

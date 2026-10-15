@@ -230,6 +230,10 @@ body.kitchen .site-footer { display: none; }
 body.is-fullscreen .site-header { display: none; }
 
 .modal-wide { width: min(900px, 100%); }
+/* Gang-Umschalter: Vorspeise / Hauptspeise / Nachspeise / Geschlossen */
+.course-switch { display: inline-flex; flex-wrap: wrap; gap: .35rem; margin: 0; }
+.course-main-kind { margin: -.2rem 0 .6rem 1.8rem; }
+.kind-tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1rem; }
 .stock-grid { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .stock-tile {
   display: flex; align-items: center; gap: .5rem; min-height: 56px; padding: .5rem .65rem;
@@ -264,9 +268,13 @@ body.is-fullscreen .site-header { display: none; }
 .tile-in_progress { background: var(--warn-soft); border-color: var(--warn-strong); }
 .tile-done { background: var(--ok-soft); border-color: var(--ok); opacity: .8; }
 .tile-cancelled { opacity: .45; text-decoration: line-through; }
+.tile-skip { min-height: 110px; border-style: dashed; }
+.tile-skip.tile-new { background: var(--surface-2); }
+.tile-skip-hint { margin-top: auto; color: var(--muted); font-size: .85rem; font-weight: 600; }
 .tile-top { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
 .tile-number { font-size: 1.9rem; font-weight: 800; line-height: 1; }
 .tile-age { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.tile-course { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .tile-guest { font-weight: 700; font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile-item { font-size: 1.05rem; }
 .tile-icons { font-size: 1.35rem; letter-spacing: .1rem; line-height: 1.3; }
@@ -310,6 +318,7 @@ body.guest { background: var(--bg); }
 .guest-header h1 { font-size: 1.5rem; margin: .3rem 0 0; }
 .guest-main { max-width: 560px; margin: 0 auto; padding: .5rem 1rem 7rem; }
 .guest-who { text-align: center; color: var(--muted); margin-bottom: 1rem; }
+.guest-course { display: inline-block; margin-top: .35rem; font-size: 1.15rem; font-weight: 700; color: var(--text); }
 
 .option-list { display: grid; gap: .6rem; }
 .option { position: relative; display: block; margin: 0; cursor: pointer; font-weight: normal; }

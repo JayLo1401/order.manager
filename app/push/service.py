@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
+from app.models.event import Guest
 from app.models.push import PushSubscription
 from app.models.settings import PlatformSettings
 
@@ -41,11 +42,19 @@ def get_vapid_keys(db: Session) -> PlatformSettings:
     return platform
 
 
+def _as_dicts(subscriptions) -> list[dict]:
+    return [{"id": s.id, "endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}} for s in subscriptions]
+
+
 def collect_subscriptions(db: Session, guest_id: int) -> list[dict]:
-    return [
-        {"id": s.id, "endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}}
-        for s in db.scalars(select(PushSubscription).where(PushSubscription.guest_id == guest_id))
-    ]
+    return _as_dicts(db.scalars(select(PushSubscription).where(PushSubscription.guest_id == guest_id)))
+
+
+def collect_event_subscriptions(db: Session, event_id: int) -> list[dict]:
+    """Alle Gaeste eines Bestelltags, z.B. wenn der naechste Gang startet."""
+    return _as_dicts(db.scalars(
+        select(PushSubscription).join(Guest, Guest.id == PushSubscription.guest_id).where(Guest.event_id == event_id)
+    ))
 
 
 def send_push(subscriptions: list[dict], private_pem: str, payload: dict) -> None:

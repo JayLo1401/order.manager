@@ -1,12 +1,22 @@
 {% extends "guest/guest_base.html" %}
 {% block content %}
-<p class="guest-who">Hallo {{ ctx.guest.label }}! Was darf’s sein?</p>
-{% if products %}{{ m.veg_filter() }}{% endif %}
+{% set pizza = ctx.kind == 'pizza' %}
+<p class="guest-who">
+  Hallo {{ ctx.guest.label }}! Was darf’s sein?
+  {% if ctx.event.courses|length > 1 %}<br><span class="guest-course"><span class="emoji">{{ ctx.event.course_icon(ctx.course) }}</span> {{ ctx.event.course_label(ctx.course) }}</span>{% endif %}
+</p>
+{% if products and pizza %}{{ m.veg_filter() }}{% endif %}
+{% if ctx.course in ('starter', 'dessert') %}
+  <form method="post" action="{{ ctx.base }}/order" class="skip-form">
+    {{ m.csrf() }}<input type="hidden" name="skip" value="1">
+    <button class="btn btn-block" type="submit" data-once>🚫 Ich möchte keine {{ ctx.event.course_label(ctx.course) }}</button>
+  </form>
+{% endif %}
 
 <form method="post" action="{{ ctx.base }}/order" id="order-form" data-product-options="{{ product_options|tojson|forceescape }}">
   {{ m.csrf() }}
   <div class="option-list">
-    {% if ctx.settings.allow_custom %}
+    {% if ctx.allow_custom %}
       <a class="option" href="{{ ctx.base }}/custom" style="text-decoration:none;color:inherit">
         <span class="option-body custom-link">
           <span class="option-icon emoji">✨</span>
@@ -17,27 +27,32 @@
     {% endif %}
     {% for p in products %}
       <label class="option" data-veg-item="{{ 1 if p.vegetarian else 0 }}">
-        <input type="radio" name="product_id" value="{{ p.id }}" required>
+        <input type="radio" name="product_id" value="{{ p.id }}" required {% if p.choice_required %}data-choice-required="1"{% endif %}>
         <span class="option-body">
           <span class="option-icon emoji">{{ p.icon }}</span>
           <span class="option-text">
             <strong>{{ p.name }}{% if p.vegetarian %} <span class="badge badge-veg">🌱 Vegetarisch</span>{% endif %}</strong>
-            {% if p.description %}<span class="desc">{{ p.description }}</span><br>{% endif %}
-            <span class="desc">{% for i in p.ingredients %}<span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</span>
+            {% if p.description %}<span class="desc">{{ p.description }}</span>{% if p.ingredients %}<br>{% endif %}{% endif %}
+            {% if p.ingredients %}<span class="desc">{% for i in p.ingredients %}<span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</span>{% endif %}
           </span>
         </span>
       </label>
     {% endfor %}
   </div>
-  <p class="muted" id="veg-empty" style="text-align:center;margin-top:1rem" hidden>
-    Keine vegetarische Pizza auf der Karte{% if ctx.settings.allow_custom %} – stell dir einfach eine Wunschpizza zusammen{% endif %}.
-  </p>
+  {% if pizza %}
+    <p class="muted" id="veg-empty" style="text-align:center;margin-top:1rem" hidden>
+      Keine vegetarische Pizza auf der Karte{% if ctx.allow_custom %} – stell dir einfach eine Wunschpizza zusammen{% endif %}.
+    </p>
+  {% endif %}
+  {% if not products and not ctx.allow_custom %}
+    <div class="card" style="text-align:center"><p class="muted">Gerade gibt es hier leider nichts zu bestellen.</p></div>
+  {% endif %}
 
   {% if products %}
     {% if ctx.settings.allow_note %}
       <div class="field" style="margin-top:1rem">
         <label for="note">Anmerkung <span class="muted small">(optional)</span></label>
-        <input type="text" id="note" name="note" maxlength="300" placeholder="z.B. ohne Oregano, gut durch …">
+        <input type="text" id="note" name="note" maxlength="300" placeholder="{{ 'z.B. ohne Oregano, gut durch …' if pizza else 'z.B. ohne Zwiebeln …' }}">
       </div>
     {% endif %}
     <div class="order-bar">
@@ -49,4 +64,4 @@
   {% include "guest/_options_sheet.html" %}
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=7"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=8"></script>{% endblock %}

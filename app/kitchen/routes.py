@@ -10,7 +10,7 @@ from app.catalog.routes import group_by_category
 from app.models.catalog import Ingredient
 from app.database import get_db
 from app.events.service import today_event
-from app.models.event import Event, Guest, Order
+from app.models.event import COURSES, Event, Guest, Order
 from app.models.push import PushSubscription
 from app.models.user import User
 from app.orders.service import OrderError, change_extra_orders, change_status, order_to_dict, set_sold_out
@@ -55,6 +55,8 @@ def orders_api(event_id: int | None = None, db: Session = Depends(get_db), user:
             "id": event.id,
             "title": event.title,
             "ordering_open": event.ordering_open,
+            "courses": event.courses,
+            "current_course": event.current_course,
             # Bei unbegrenzten Bestellungen ist "Nachschlag" sinnlos
             "order_limit": host_settings.max_orders_per_guest,
             "sold_out_count": len(event.sold_out_ids),
@@ -71,7 +73,7 @@ def ingredients_api(db: Session = Depends(get_db), user: User = Depends(require_
         return {"groups": []}
     ingredients = list(db.scalars(
         select(Ingredient)
-        .where(Ingredient.owner_id == user.id, Ingredient.kind == event.kind, Ingredient.active.is_(True))
+        .where(Ingredient.owner_id == user.id, Ingredient.kind == "pizza", Ingredient.active.is_(True))
         .order_by(Ingredient.sort_order, Ingredient.name)
     ))
     sold_out = event.sold_out_ids
@@ -127,18 +129,20 @@ def set_guest_extra(
     guest_id: int,
     background: BackgroundTasks,
     delta: int = Body(..., embed=True),
+    course: str = Body("main", embed=True),
     db: Session = Depends(get_db),
     user: User = Depends(require_login_api),
 ):
+    """Nachschlag gilt fuer den Gang der Bestellung, auf die getippt wurde."""
     guest = db.get(Guest, guest_id)
     event = db.get(Event, guest.event_id) if guest else None
     if guest is None or event is None or event.owner_id != user.id:
         raise HTTPException(status_code=404)
-    if delta not in (1, -1):
+    if delta not in (1, -1) or course not in COURSES:
         raise HTTPException(status_code=400)
-    change_extra_orders(db, guest, event, delta, background)
+    change_extra_orders(db, guest, event, course, delta, background)
     db.commit()
-    return {"guest_id": guest.id, "extra_orders": guest.extra_orders}
+    return {"guest_id": guest.id, "course": course, "extra_orders": guest.extra_for(course)}
 
 
 @router.post("/api/orders/{order_id}/status", dependencies=[Depends(verify_csrf_header)])

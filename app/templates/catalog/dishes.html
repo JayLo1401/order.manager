@@ -1,42 +1,56 @@
 {% extends "base.html" %}
-{% block title %}Pizzen – Bestell-Manager{% endblock %}
+{% set info = KINDS[kind] %}
+{% block title %}{{ info.plural }} – Bestell-Manager{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>Vorgefertigte Pizzen</h1>
-  <a class="btn btn-primary" href="/pizzas/new">+ Neue Pizza</a>
+  <h1>Speisen</h1>
+  <a class="btn btn-primary" href="/dishes/{{ kind }}/new">+ {{ info.label }}</a>
 </div>
+{{ m.kind_tabs(kind, '/dishes/%s') }}
+{% if kind == 'main' %}
+  <p class="muted small">Hauptgerichte gibt es an Tagen, an denen als Hauptspeise <b>nicht</b> Pizza angeboten wird (einstellbar unter „Gänge“ im Küchenmonitor bzw. bei Link &amp; QR-Code).</p>
+{% endif %}
 
 {% if items %}
 <p class="muted small">
   Zum Sortieren am <span aria-hidden="true">⠿</span> ziehen – in dieser Reihenfolge sehen sie auch die Gäste.
   <span class="sort-status" data-sortable-status></span>
 </p>
-<div class="grid-2" data-sortable data-sortable-url="/pizzas/reorder" data-csrf="{{ csrf_token() }}">
+<div class="grid-2" data-sortable data-sortable-url="/dishes/{{ kind }}/reorder" data-csrf="{{ csrf_token() }}">
   {% for p in items %}
-    <div class="card" id="pizza-{{ p.id }}" data-sortable-id="{{ p.id }}" style="{{ '' if p.active else 'opacity:.6' }}">
+    <div class="card" id="dish-{{ p.id }}" data-sortable-id="{{ p.id }}" style="{{ '' if p.active else 'opacity:.6' }}">
       <div class="page-head" style="margin-bottom:.5rem">
         <h2 style="margin:0; display:flex; align-items:center; gap:.4rem">
           <button type="button" class="drag-handle" data-sortable-handle title="Ziehen zum Sortieren" aria-label="{{ p.name }} verschieben">⠿</button>
           <span class="emoji">{{ p.icon }}</span> {{ p.name }}
         </h2>
-        <form method="post" action="/pizzas/{{ p.id }}/toggle" class="inline">
+        <form method="post" action="/dishes/{{ kind }}/{{ p.id }}/toggle" class="inline">
           {{ m.csrf() }}
           <button class="switch {{ 'on' if p.active }}" title="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}" aria-label="{{ 'Deaktivieren' if p.active else 'Aktivieren' }}"><span></span></button>
         </form>
       </div>
       {% if p.vegetarian %}<p style="margin-bottom:.4rem"><span class="badge badge-veg">🌱 Vegetarisch</span></p>{% endif %}
       {% if p.description %}<p class="muted">{{ p.description }}</p>{% endif %}
-      <div class="chips" style="margin-bottom:.75rem">
-        {% for i in p.ingredients %}
-          <span class="chip" style="{{ '' if i.active else 'text-decoration:line-through;opacity:.6' }}"><span class="emoji">{{ i.icon }}</span>{{ i.name }}</span>
-        {% endfor %}
-      </div>
+      {% if p.ingredients %}
+        <div class="chips" style="margin-bottom:.75rem">
+          {% for i in p.ingredients %}
+            <span class="chip" style="{{ '' if i.active else 'text-decoration:line-through;opacity:.6' }}"><span class="emoji">{{ i.icon }}</span>{{ i.name }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% set opts = p.options|selectattr('active')|list %}
+      {% if opts %}
+        <p class="muted small">
+          {% if p.choice_required %}<b>Auswahl Pflicht:</b>{% else %}Optionen:{% endif %}
+          {% for o in opts %}<span class="emoji">{{ o.icon }}</span> {{ o.name }}{{ ', ' if not loop.last }}{% endfor %}
+        </p>
+      {% endif %}
       {% if p.active and not p.available %}
         <p class="small"><span class="badge badge-warn">Für Gäste ausgeblendet</span> – mindestens eine Zutat ist deaktiviert.</p>
       {% endif %}
       <div class="actions">
-        <a class="btn btn-sm" href="/pizzas/{{ p.id }}">Bearbeiten</a>
-        <form method="post" action="/pizzas/{{ p.id }}/delete" class="inline" data-confirm="Pizza „{{ p.name }}“ löschen?">
+        <a class="btn btn-sm" href="/dishes/{{ kind }}/{{ p.id }}">Bearbeiten</a>
+        <form method="post" action="/dishes/{{ kind }}/{{ p.id }}/delete" class="inline" data-confirm="{{ info.label }} „{{ p.name }}“ löschen?">
           {{ m.csrf() }}<button class="btn btn-sm btn-danger">Löschen</button>
         </form>
       </div>
@@ -44,7 +58,7 @@
   {% endfor %}
 </div>
 {% else %}
-  <div class="empty"><div class="big emoji">🍕</div>Noch keine Pizzen angelegt.</div>
+  <div class="empty"><div class="big emoji">{{ info.icon }}</div>Noch keine {{ info.plural }} angelegt.</div>
 {% endif %}
 {% endblock %}
 {% block scripts %}<script src="/static/js/sortable.js?v=1"></script>{% endblock %}

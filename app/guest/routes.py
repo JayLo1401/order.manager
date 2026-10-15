@@ -39,6 +39,22 @@ class GuestContext:
     def base(self) -> str:
         return f"/o/{self.event.token}"
 
+    @property
+    def course(self) -> str | None:
+        """Gang, der gerade bestellt werden kann (None = geschlossen)."""
+        return self.event.current_course
+
+    @property
+    def kind(self) -> str | None:
+        return self.event.kind_for(self.course) if self.course else None
+
+    @property
+    def allow_custom(self) -> bool:
+        return self.kind == "pizza" and self.settings.allow_custom
+
+    def can_order_more(self, db: Session) -> bool:
+        return can_order_more(db, self.guest, self.settings, self.course)
+
 
 def _guest_ids(request: Request) -> dict:
     return request.session.get("guests", {})
@@ -72,7 +88,7 @@ def _my_orders(db: Session, guest: Guest) -> list[Order]:
 @router.get("")
 def entry(request: Request, ctx: GuestContext = Depends(load_context), db: Session = Depends(get_db)):
     if ctx.guest is not None:
-        if _my_orders(db, ctx.guest) and not can_order_more(db, ctx.guest, ctx.settings):
+        if _my_orders(db, ctx.guest) and not ctx.can_order_more(db):
             return RedirectResponse(f"{ctx.base}/status", status_code=303)
         return RedirectResponse(f"{ctx.base}/menu", status_code=303)
     return _render(request, "join.html", ctx, error=None, form={})
@@ -113,7 +129,7 @@ def join(
 
 
 def _ordering_blocked(db: Session, ctx: GuestContext) -> RedirectResponse | None:
-    if not ctx.event.ordering_open or not can_order_more(db, ctx.guest, ctx.settings):
+    if not ctx.can_order_more(db):
         return RedirectResponse(f"{ctx.base}/status", status_code=303)
     return None
 
@@ -123,15 +139,15 @@ def menu(request: Request, ctx: GuestContext = Depends(require_guest), db: Sessi
     if (blocked := _ordering_blocked(db, ctx)) is not None:
         return blocked
     products = []
-    if ctx.settings.allow_presets:
+    if ctx.kind != "pizza" or ctx.settings.allow_presets:
         products = [p for p in db.scalars(
             select(Product)
-            .where(Product.owner_id == ctx.event.owner_id, Product.kind == ctx.event.kind, Product.active.is_(True))
+            .where(Product.owner_id == ctx.event.owner_id, Product.kind == ctx.kind, Product.active.is_(True))
             .order_by(Product.sort_order, Product.name)
         ) if available_today(p, ctx.event)]
-    if not products and ctx.settings.allow_custom:
+    if not products and ctx.allow_custom:
         return RedirectResponse(f"{ctx.base}/custom", status_code=303)
-    options = options_for(db, ctx.event)
+    options = options_for(db, ctx.event.owner_id, ctx.kind)
     # Welche Optionen gibt es bei welcher Pizza? (fuer das Options-Fenster)
     product_options = {p.id: [o.id for o in options if o.available_for(p)] for p in products}
     return _render(request, "menu.html", ctx, products=products, options=options,
@@ -142,14 +158,14 @@ def menu(request: Request, ctx: GuestContext = Depends(require_guest), db: Sessi
 def custom(request: Request, ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)):
     if (blocked := _ordering_blocked(db, ctx)) is not None:
         return blocked
-    if not ctx.settings.allow_custom:
+    if not ctx.allow_custom:
         return RedirectResponse(f"{ctx.base}/menu", status_code=303)
     ingredients = list(db.scalars(
         select(Ingredient)
-        .where(Ingredient.owner_id == ctx.event.owner_id, Ingredient.kind == ctx.event.kind, Ingredient.active.is_(True))
+        .where(Ingredient.owner_id == ctx.event.owner_id, Ingredient.kind == "pizza", Ingredient.active.is_(True))
         .order_by(Ingredient.sort_order, Ingredient.name)
     ))
-    options = [o for o in options_for(db, ctx.event) if o.available_for(None)]
+    options = [o for o in options_for(db, ctx.event.owner_id, "pizza") if o.available_for(None)]
     return _render(request, "custom.html", ctx, groups=group_by_category(ingredients), options=options,
                    sold_out=ctx.event.sold_out_ids)
 
@@ -161,14 +177,16 @@ def order(
     ingredient_ids: list[int] = Form(default=[]),
     option_ids: list[int] = Form(default=[]),
     note: str = Form(""),
+    skip: bool = Form(False),
     ctx: GuestContext = Depends(require_guest),
     db: Session = Depends(get_db),
 ):
     try:
-        place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note, option_ids)
+        place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note, option_ids, skip)
     except OrderError as exc:
         flash(request, str(exc), "error")
-        return RedirectResponse(f"{ctx.base}/{'custom' if not product_id else 'menu'}", status_code=303)
+        return RedirectResponse(f"{ctx.base}/{'custom' if not product_id and ctx.allow_custom else 'menu'}",
+                                status_code=303)
     db.commit()
     return RedirectResponse(f"{ctx.base}/status?ok=1", status_code=303)
 
@@ -177,11 +195,14 @@ def order(
 def status_page(
     request: Request, ok: int = 0, ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)
 ):
+    orders = _my_orders(db, ctx.guest)
     return _render(
         request, "status.html", ctx,
-        orders=_my_orders(db, ctx.guest),
+        orders=orders,
+        # Hat der Gast im gerade offenen Gang schon bestellt?
+        has_current=any(o.course == ctx.course and o.status != "cancelled" for o in orders),
         just_ordered=bool(ok),
-        can_order_more=ctx.event.ordering_open and can_order_more(db, ctx.guest, ctx.settings),
+        can_order_more=ctx.can_order_more(db),
         vapid_public_key=get_vapid_keys(db).vapid_public_key,
     )
 
@@ -190,7 +211,8 @@ def status_page(
 def status_api(ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)):
     return {
         "ordering_open": ctx.event.ordering_open,
-        "can_order_more": ctx.event.ordering_open and can_order_more(db, ctx.guest, ctx.settings),
+        "current_course": ctx.course,
+        "can_order_more": ctx.can_order_more(db),
         "orders": [order_to_dict(o) for o in _my_orders(db, ctx.guest)],
     }
 

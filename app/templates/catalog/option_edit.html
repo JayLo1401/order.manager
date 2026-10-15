@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% set info = KINDS[kind] %}
 {% block title %}{{ item.name }} – Option bearbeiten{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1><span class="emoji">{{ item.icon }}</span> {{ item.name }}</h1>
-  <a class="btn" href="/options">Zurück</a>
+  <a class="btn" href="/options?kind={{ kind }}">Zurück</a>
 </div>
 
 <form method="post" action="/options/{{ item.id }}">
@@ -25,19 +26,19 @@
     </div>
     <div class="field">
       <label>Art</label>
-      <label class="check"><input type="radio" name="option_group" value="shape" {{ 'checked' if item.option_group == 'shape' }}> <span><b>Form</b> – Gast kann nur eine wählen</span></label>
+      <label class="check"><input type="radio" name="option_group" value="shape" {{ 'checked' if item.option_group == 'shape' }}> <span><b>Auswahl</b> – Gast kann nur eine wählen</span></label>
       <label class="check"><input type="radio" name="option_group" value="extra" {{ 'checked' if item.option_group == 'extra' }}> <span><b>Extra</b> – beliebig kombinierbar</span></label>
     </div>
     <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if item.active }}> Aktiv</label>
-    <label class="check"><input type="checkbox" name="all_products" value="1" id="all-products" {{ 'checked' if item.all_products }}> Bei allen Pizzen verfügbar (auch bei der Wunschpizza)</label>
+    <label class="check"><input type="checkbox" name="all_products" value="1" id="all-products" {{ 'checked' if item.all_products }}> Bei allen {{ info.plural }} verfügbar{% if kind == 'pizza' %} (auch bei der Wunschpizza){% endif %}</label>
   </div>
 
   <div class="card" id="product-assignment" {{ 'hidden' if item.all_products }}>
-    <h2>Bei welchen Pizzen?</h2>
-    <p class="muted small">Bei der Wunschpizza ist diese Option nicht wählbar.</p>
-    {% if pizzas %}
+    <h2>Bei welchen {{ info.plural }}?</h2>
+    {% if kind == 'pizza' %}<p class="muted small">Bei der Wunschpizza ist diese Option nicht wählbar.</p>{% endif %}
+    {% if dishes %}
       <div class="ing-grid">
-        {% for p in pizzas %}
+        {% for p in dishes %}
           <label class="ing-tile">
             <input type="checkbox" name="product_ids" value="{{ p.id }}" {{ 'checked' if p.id in selected_ids }}>
             <span><b class="emoji">{{ p.icon }}</b>{{ p.name }}{% if not p.active %} <small class="muted">(inaktiv)</small>{% endif %}</span>
@@ -45,7 +46,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="muted">Noch keine Pizzen angelegt.</p>
+      <p class="muted">Noch keine {{ info.plural }} angelegt.</p>
     {% endif %}
   </div>
 
@@ -54,7 +55,7 @@
 {% endblock %}
 {% block scripts %}
 <script>
-  // Zuordnung nur zeigen, wenn die Option nicht bei allen Pizzen gilt
+  // Zuordnung nur zeigen, wenn die Option nicht bei allen Gerichten gilt
   document.getElementById("all-products").addEventListener("change", (ev) => {
     document.getElementById("product-assignment").hidden = ev.target.checked;
   });

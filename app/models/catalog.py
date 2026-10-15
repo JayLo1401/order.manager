@@ -1,11 +1,17 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text, true
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Table, Text, false, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
-# Bestell-Bereiche. Aktuell nur Pizza; Grill & Co. kommen spaeter als weitere
-# Werte dazu (Zutaten, Produkte und Bestelltage sind bereits danach getrennt).
-KINDS = {"pizza": "Pizza"}
+# Speisen-Arten. Nur "pizza" hat Zutaten und die Wunschpizza; die anderen sind
+# einfache Gerichte (optional mit Optionen, z.B. Eissorte bei der Eispalatschinke).
+# "main" sind Hauptgerichte, die es statt Pizza geben kann.
+KINDS = {
+    "starter": {"label": "Vorspeise", "plural": "Vorspeisen", "icon": "🥣"},
+    "pizza": {"label": "Pizza", "plural": "Pizzen", "icon": "🍕"},
+    "main": {"label": "Hauptgericht", "plural": "Hauptgerichte", "icon": "🍽️"},
+    "dessert": {"label": "Nachspeise", "plural": "Nachspeisen", "icon": "🍨"},
+}
 
 INGREDIENT_CATEGORIES = {
     "base": "Basis & Saucen",
@@ -21,9 +27,9 @@ INGREDIENT_CATEGORIES = {
 NON_VEGETARIAN_CATEGORIES = ("meat", "fish")
 
 # Arten von Optionen: aus "shape" darf der Gast hoechstens eine waehlen
-# (Calzone UND Sternpizza ergibt keinen Sinn), "extra" ist frei kombinierbar.
+# (Calzone UND Sternpizza, Vanille- UND Erdbeereis), "extra" ist frei kombinierbar.
 OPTION_GROUPS = {
-    "shape": "Form",
+    "shape": "Auswahl",
     "extra": "Extra",
 }
 
@@ -110,6 +116,8 @@ class Product(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     icon: Mapped[str] = mapped_column(String(16), default="🍕")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Gast muss eine "Auswahl"-Option waehlen (z.B. Eissorte), sofern es welche gibt
+    choice_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     ingredients: Mapped[list[Ingredient]] = relationship(

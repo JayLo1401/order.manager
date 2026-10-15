@@ -15,10 +15,7 @@
   </div>
   <div class="card">
     <h2>{{ event.title }}</h2>
-    <p>
-      {% if event.ordering_open %}<span class="badge badge-ok">Bestellungen offen</span>
-      {% else %}<span class="badge badge-warn">Bestellungen pausiert</span>{% endif %}
-    </p>
+
     <div class="field">
       <label for="guest-url">Link für Gäste</label>
       <div class="url-box">
@@ -32,15 +29,20 @@
     </div>
     <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0">
     <div class="actions">
-      <form method="post" action="/link/toggle" class="inline">
-        {{ m.csrf() }}<input type="hidden" name="next" value="/link">
-        <button class="btn">{{ '⏸️ Bestellungen pausieren' if event.ordering_open else '▶️ Bestellungen öffnen' }}</button>
-      </form>
       <form method="post" action="/link/regenerate" class="inline" data-confirm="Neuen Link erzeugen? Der bisherige Link und QR-Code funktionieren dann nicht mehr.">
         {{ m.csrf() }}<button class="btn btn-danger">🔄 Neuen Link erzeugen</button>
       </form>
     </div>
   </div>
+</div>
+<div class="card">
+  <h2>Gänge heute</h2>
+  <div class="field">
+    <label>Gerade bestellbar</label>
+    {{ m.course_switch(event, '/link') }}
+  </div>
+  <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0">
+  {{ m.courses_form(event, '/link') }}
 </div>
 {% else %}
 <div class="card">

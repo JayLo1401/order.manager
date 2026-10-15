@@ -28,9 +28,9 @@
     </div>
     <div class="form-row">
       <div class="field">
-        <label for="max_orders_per_guest">Bestellungen pro Gast</label>
+        <label for="max_orders_per_guest">Bestellungen pro Gast und Gang</label>
         <input type="number" id="max_orders_per_guest" name="max_orders_per_guest" min="0" value="{{ s.max_orders_per_guest }}">
-        <div class="hint">0 = unbegrenzt</div>
+        <div class="hint">z.B. 1 = je eine Vorspeise, Hauptspeise und Nachspeise. 0 = unbegrenzt</div>
       </div>
     </div>
     <label class="check"><input type="checkbox" name="allow_note" value="1" {{ 'checked' if s.allow_note }}> Gäste dürfen eine Anmerkung schreiben (z.B. „gut durch“)</label>

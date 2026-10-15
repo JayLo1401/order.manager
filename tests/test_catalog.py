@@ -9,7 +9,7 @@ from tests.conftest import csrf_from, login
 
 def _pizza_ids(db_session, owner_id):
     return [p.id for p in db_session.scalars(
-        select(Product).where(Product.owner_id == owner_id).order_by(Product.sort_order)
+        select(Product).where(Product.owner_id == owner_id, Product.kind == "pizza").order_by(Product.sort_order)
     )]
 
 
@@ -50,14 +50,14 @@ def test_reorder_pizzas(client, db_session, admin):
     ids = _pizza_ids(db_session, admin.id)
     new_order = [ids[-1], *ids[:-1]]
 
-    token = csrf_from(client, "/pizzas")
-    response = client.post("/pizzas/reorder", json={"ids": new_order}, headers={"X-CSRF-Token": token})
+    token = csrf_from(client, "/dishes/pizza")
+    response = client.post("/dishes/pizza/reorder", json={"ids": new_order}, headers={"X-CSRF-Token": token})
     assert response.status_code == 200
     db_session.expire_all()
     assert _pizza_ids(db_session, admin.id) == new_order
 
     # Ohne CSRF-Header abgelehnt
-    assert client.post("/pizzas/reorder", json={"ids": ids}).status_code == 400
+    assert client.post("/dishes/pizza/reorder", json={"ids": ids}).status_code == 400
 
 
 def test_reorder_ignores_other_tenants_pizzas(client, db_session, admin):
@@ -70,11 +70,11 @@ def test_reorder_ignores_other_tenants_pizzas(client, db_session, admin):
     before = {p.id: p.sort_order for p in db_session.scalars(select(Product).where(Product.owner_id == other.id))}
 
     login(client, "admin@test.at", "geheim123")
-    token = csrf_from(client, "/pizzas")
-    client.post("/pizzas/reorder", json={"ids": list(reversed(before))}, headers={"X-CSRF-Token": token})
+    token = csrf_from(client, "/dishes/pizza")
+    client.post("/dishes/pizza/reorder", json={"ids": list(reversed(before))}, headers={"X-CSRF-Token": token})
 
     db_session.expire_all()
     after = {p.id: p.sort_order for p in db_session.scalars(select(Product).where(Product.owner_id == other.id))}
     assert after == before
     # Fremde Pizza auch nicht bearbeitbar
-    assert client.get(f"/pizzas/{next(iter(before))}").status_code == 404
+    assert client.get(f"/dishes/pizza/{next(iter(before))}").status_code == 404

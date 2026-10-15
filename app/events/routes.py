@@ -2,7 +2,7 @@
 
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from app.database import get_db
 from app.events.service import get_or_create_today_event, guest_url, qr_png, qr_svg, today_event
 from app.models.event import Event, Order
 from app.models.user import User
+from app.orders.service import OrderError, set_courses, set_current_course
 from app.templating import flash, templates
 
 router = APIRouter(prefix="/link", dependencies=[Depends(require_login)])
@@ -31,7 +32,7 @@ def link_page(request: Request, db: Session = Depends(get_db), user: User = Depe
         .order_by(Event.day.desc())
         .limit(30)
     ).all()
-    share_text = f"🍕 {event.title}: Hier kannst du deine Pizza bestellen: {url}" if event else ""
+    share_text = f"🍽️ {event.title}: Hier kannst du bestellen: {url}" if event else ""
     return templates.TemplateResponse(request, "events/link.html", {
         "event": event,
         "url": url,
@@ -60,15 +61,46 @@ def regenerate(request: Request, db: Session = Depends(get_db), user: User = Dep
     return RedirectResponse("/link", status_code=303)
 
 
-@router.post("/toggle", dependencies=[Depends(verify_csrf)])
-def toggle(
-    request: Request, next: str = Form("/link"), db: Session = Depends(get_db), user: User = Depends(require_login)
+@router.post("/course", dependencies=[Depends(verify_csrf)])
+def switch_course(
+    request: Request,
+    background: BackgroundTasks,
+    course: str = Form(""),
+    next: str = Form("/link"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login),
+):
+    """Gang zum Bestellen freigeben; leer = geschlossen."""
+    event = today_event(db, user)
+    if event is not None:
+        try:
+            set_current_course(db, event, course or None, background)
+        except OrderError as exc:
+            flash(request, str(exc), "error")
+        else:
+            db.commit()
+            flash(request, f"{event.course_label(course)} freigegeben." if course else "Bestellungen geschlossen.")
+    return RedirectResponse(safe_next(next), status_code=303)
+
+
+@router.post("/courses", dependencies=[Depends(verify_csrf)])
+def save_courses(
+    request: Request,
+    courses: list[str] = Form(default=[]),
+    main_kind: str = Form("pizza"),
+    next: str = Form("/link"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login),
 ):
     event = today_event(db, user)
     if event is not None:
-        event.ordering_open = not event.ordering_open
-        db.commit()
-        flash(request, "Bestellungen wieder geöffnet." if event.ordering_open else "Bestellungen pausiert.")
+        try:
+            set_courses(event, courses, main_kind)
+        except OrderError as exc:
+            flash(request, str(exc), "error")
+        else:
+            db.commit()
+            flash(request, "Gänge für heute gespeichert.")
     return RedirectResponse(safe_next(next), status_code=303)
 
 

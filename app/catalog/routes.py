@@ -8,7 +8,7 @@ from app.catalog.defaults import add_missing_default_ingredients
 from app.catalog.symbols import SYMBOL_GROUPS
 from app.database import get_db
 from app.events.service import today_event
-from app.models.catalog import INGREDIENT_CATEGORIES, OPTION_GROUPS, Ingredient, Product, ProductOption
+from app.models.catalog import INGREDIENT_CATEGORIES, KINDS, OPTION_GROUPS, Ingredient, Product, ProductOption
 from app.models.user import User
 from app.templating import flash, templates
 
@@ -149,22 +149,48 @@ def delete_ingredient(request: Request, item_id: int, db: Session = Depends(get_
     return RedirectResponse("/ingredients", status_code=303)
 
 
-# ---------------------------------------------------------------- Pizzen
+# ---------------------------------------------------------------- Speisen (Vorspeisen, Pizzen, Hauptgerichte, Nachspeisen)
+
+def _kind(kind: str) -> str:
+    if kind not in KINDS:
+        raise HTTPException(status_code=404)
+    return kind
+
+
+def _dish(db: Session, kind: str, item_id: int, user: User) -> Product:
+    item = _owned(db, Product, item_id, user)
+    if item.kind != _kind(kind):
+        raise HTTPException(status_code=404)
+    return item
+
+
+def _dishes(db: Session, user: User, kind: str) -> list[Product]:
+    return list(db.scalars(
+        select(Product).where(Product.owner_id == user.id, Product.kind == kind)
+        .order_by(Product.sort_order, Product.name)
+    ))
+
 
 @router.get("/pizzas")
-def pizzas(request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)):
-    items = db.scalars(
-        select(Product).where(Product.owner_id == user.id, Product.kind == "pizza")
-        .order_by(Product.sort_order, Product.name)
-    ).all()
-    return templates.TemplateResponse(request, "catalog/pizzas.html", {"items": items})
+def pizzas_redirect():
+    return RedirectResponse("/dishes/pizza", status_code=303)
 
 
-@router.post("/pizzas/reorder", dependencies=[Depends(verify_csrf_header)])
-def reorder_pizzas(ids: list[int] = Body(..., embed=True), db: Session = Depends(get_db), user: User = Depends(require_login)):
-    """Neue Reihenfolge per Drag & Drop. Muss vor /pizzas/{item_id} stehen."""
+@router.get("/dishes/{kind}")
+def dishes(request: Request, kind: str, db: Session = Depends(get_db), user: User = Depends(require_login)):
+    return templates.TemplateResponse(request, "catalog/dishes.html", {
+        "kind": _kind(kind), "items": _dishes(db, user, kind),
+    })
+
+
+@router.post("/dishes/{kind}/reorder", dependencies=[Depends(verify_csrf_header)])
+def reorder_dishes(
+    kind: str, ids: list[int] = Body(..., embed=True), db: Session = Depends(get_db),
+    user: User = Depends(require_login),
+):
+    """Neue Reihenfolge per Drag & Drop. Muss vor /dishes/{kind}/{item_id} stehen."""
     items = {p.id: p for p in db.scalars(
-        select(Product).where(Product.owner_id == user.id, Product.id.in_(ids or [0]))
+        select(Product).where(Product.owner_id == user.id, Product.kind == _kind(kind), Product.id.in_(ids or [0]))
     )}
     for index, item_id in enumerate(ids):
         if item_id in items:
@@ -173,7 +199,7 @@ def reorder_pizzas(ids: list[int] = Body(..., embed=True), db: Session = Depends
     return {"ok": True}
 
 
-def _options(db: Session, user: User, kind: str = "pizza") -> list[ProductOption]:
+def _options(db: Session, user: User, kind: str) -> list[ProductOption]:
     return list(db.scalars(
         select(ProductOption)
         .where(ProductOption.owner_id == user.id, ProductOption.kind == kind)
@@ -181,11 +207,12 @@ def _options(db: Session, user: User, kind: str = "pizza") -> list[ProductOption
     ))
 
 
-def _pizza_form(request: Request, db: Session, user: User, item: Product | None):
-    options = _options(db, user)
-    return templates.TemplateResponse(request, "catalog/pizza_edit.html", {
+def _dish_form(request: Request, db: Session, user: User, kind: str, item: Product | None):
+    options = _options(db, user, kind)
+    return templates.TemplateResponse(request, "catalog/dish_edit.html", {
+        "kind": kind,
         "item": item,
-        "groups": group_by_category(_ingredients(db, user)),
+        "groups": group_by_category(_ingredients(db, user)) if kind == "pizza" else [],
         "selected_ids": {i.id for i in item.ingredients} if item else set(),
         "symbol_groups": SYMBOL_GROUPS,
         "global_options": [o for o in options if o.all_products],
@@ -194,105 +221,111 @@ def _pizza_form(request: Request, db: Session, user: User, item: Product | None)
     })
 
 
-@router.get("/pizzas/new")
-def new_pizza_form(request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)):
-    return _pizza_form(request, db, user, None)
+@router.get("/dishes/{kind}/new")
+def new_dish_form(request: Request, kind: str, db: Session = Depends(get_db), user: User = Depends(require_login)):
+    return _dish_form(request, db, user, _kind(kind), None)
 
 
-@router.get("/pizzas/{item_id}")
-def edit_pizza_form(request: Request, item_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)):
-    return _pizza_form(request, db, user, _owned(db, Product, item_id, user))
+@router.get("/dishes/{kind}/{item_id}")
+def edit_dish_form(
+    request: Request, kind: str, item_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)
+):
+    return _dish_form(request, db, user, kind, _dish(db, kind, item_id, user))
 
 
-def _apply_pizza_form(db: Session, user: User, item: Product, name, icon, description, ingredient_ids, active,
-                      option_ids):
+def _apply_dish_form(db: Session, user: User, item: Product, name, icon, description, ingredient_ids, active,
+                     choice_required, option_ids):
     item.name = name.strip()[:120]
     item.icon = icon.strip()[:16]
     item.description = description.strip()
     item.active = active
-    item.ingredients = list(db.scalars(
+    item.choice_required = choice_required
+    # Zutaten gibt es nur bei Pizzen
+    item.ingredients = [] if item.kind != "pizza" else list(db.scalars(
         select(Ingredient).where(Ingredient.owner_id == user.id, Ingredient.id.in_(ingredient_ids or [0]))
     ))
-    # Nur Optionen mit manueller Zuordnung - "bei allen Pizzen" gilt ohnehin
+    # Nur Optionen mit manueller Zuordnung - "bei allen" gilt ohnehin
     item.options = list(db.scalars(
         select(ProductOption).where(
             ProductOption.owner_id == user.id,
+            ProductOption.kind == item.kind,
             ProductOption.all_products.is_(False),
             ProductOption.id.in_(option_ids or [0]),
         )
     ))
 
 
-@router.post("/pizzas", dependencies=[Depends(verify_csrf)])
-def create_pizza(
+@router.post("/dishes/{kind}", dependencies=[Depends(verify_csrf)])
+def create_dish(
     request: Request,
+    kind: str,
     name: str = Form(...),
-    icon: str = Form("🍕"),
+    icon: str = Form(""),
     description: str = Form(""),
     ingredient_ids: list[int] = Form(default=[]),
     active: bool = Form(False),
+    choice_required: bool = Form(False),
     option_ids: list[int] = Form(default=[]),
     db: Session = Depends(get_db),
     user: User = Depends(require_login),
 ):
+    kind = _kind(kind)
     if not name.strip():
         flash(request, "Bitte einen Namen angeben.", "error")
-        return RedirectResponse("/pizzas/new", status_code=303)
-    item = Product(owner_id=user.id, kind="pizza", sort_order=_next_sort_order(db, Product, user))
-    _apply_pizza_form(db, user, item, name, icon, description, ingredient_ids, active, option_ids)
+        return RedirectResponse(f"/dishes/{kind}/new", status_code=303)
+    item = Product(owner_id=user.id, kind=kind, sort_order=_next_sort_order(db, Product, user))
+    _apply_dish_form(db, user, item, name, icon or KINDS[kind]["icon"], description, ingredient_ids, active,
+                     choice_required, option_ids)
     db.add(item)
     db.commit()
-    flash(request, f"Pizza „{item.name}“ angelegt.")
-    return RedirectResponse("/pizzas", status_code=303)
+    flash(request, f"{KINDS[kind]['label']} „{item.name}“ angelegt.")
+    return RedirectResponse(f"/dishes/{kind}", status_code=303)
 
 
-@router.post("/pizzas/{item_id}", dependencies=[Depends(verify_csrf)])
-def update_pizza(
+@router.post("/dishes/{kind}/{item_id}", dependencies=[Depends(verify_csrf)])
+def update_dish(
     request: Request,
+    kind: str,
     item_id: int,
     name: str = Form(...),
-    icon: str = Form("🍕"),
+    icon: str = Form(""),
     description: str = Form(""),
     ingredient_ids: list[int] = Form(default=[]),
     active: bool = Form(False),
+    choice_required: bool = Form(False),
     option_ids: list[int] = Form(default=[]),
     db: Session = Depends(get_db),
     user: User = Depends(require_login),
 ):
-    item = _owned(db, Product, item_id, user)
+    item = _dish(db, kind, item_id, user)
     if not name.strip():
         name = item.name
-    _apply_pizza_form(db, user, item, name, icon, description, ingredient_ids, active, option_ids)
+    _apply_dish_form(db, user, item, name, icon, description, ingredient_ids, active, choice_required, option_ids)
     db.commit()
-    flash(request, f"Pizza „{item.name}“ gespeichert.")
-    return RedirectResponse("/pizzas", status_code=303)
+    flash(request, f"{KINDS[kind]['label']} „{item.name}“ gespeichert.")
+    return RedirectResponse(f"/dishes/{kind}", status_code=303)
 
 
-@router.post("/pizzas/{item_id}/toggle", dependencies=[Depends(verify_csrf)])
-def toggle_pizza(request: Request, item_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)):
-    item = _owned(db, Product, item_id, user)
+@router.post("/dishes/{kind}/{item_id}/toggle", dependencies=[Depends(verify_csrf)])
+def toggle_dish(request: Request, kind: str, item_id: int, db: Session = Depends(get_db),
+                user: User = Depends(require_login)):
+    item = _dish(db, kind, item_id, user)
     item.active = not item.active
     db.commit()
-    return RedirectResponse(f"/pizzas#pizza-{item.id}", status_code=303)
+    return RedirectResponse(f"/dishes/{kind}#dish-{item.id}", status_code=303)
 
 
-@router.post("/pizzas/{item_id}/delete", dependencies=[Depends(verify_csrf)])
-def delete_pizza(request: Request, item_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)):
-    item = _owned(db, Product, item_id, user)
+@router.post("/dishes/{kind}/{item_id}/delete", dependencies=[Depends(verify_csrf)])
+def delete_dish(request: Request, kind: str, item_id: int, db: Session = Depends(get_db),
+                user: User = Depends(require_login)):
+    item = _dish(db, kind, item_id, user)
     db.delete(item)
     db.commit()
-    flash(request, f"Pizza „{item.name}“ gelöscht.")
-    return RedirectResponse("/pizzas", status_code=303)
+    flash(request, f"{KINDS[kind]['label']} „{item.name}“ gelöscht.")
+    return RedirectResponse(f"/dishes/{kind}", status_code=303)
 
 
-# ---------------------------------------------------------------- Optionen (Calzone, Sternpizza, Kaeserand ...)
-
-def _pizzas(db: Session, user: User, kind: str = "pizza") -> list[Product]:
-    return list(db.scalars(
-        select(Product).where(Product.owner_id == user.id, Product.kind == kind)
-        .order_by(Product.sort_order, Product.name)
-    ))
-
+# ---------------------------------------------------------------- Optionen (Calzone, Sternpizza, Eissorte ...)
 
 def _apply_option_form(db: Session, user: User, item: ProductOption, name, icon, description, option_group,
                        all_products, product_ids):
@@ -302,14 +335,17 @@ def _apply_option_form(db: Session, user: User, item: ProductOption, name, icon,
     item.option_group = option_group if option_group in OPTION_GROUPS else "extra"
     item.all_products = all_products
     item.products = [] if all_products else list(db.scalars(
-        select(Product).where(Product.owner_id == user.id, Product.id.in_(product_ids or [0]))
+        select(Product).where(
+            Product.owner_id == user.id, Product.kind == item.kind, Product.id.in_(product_ids or [0])
+        )
     ))
 
 
 @router.get("/options")
-def options(request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)):
+def options(request: Request, kind: str = "pizza", db: Session = Depends(get_db), user: User = Depends(require_login)):
     return templates.TemplateResponse(request, "catalog/options.html", {
-        "items": _options(db, user), "groups": OPTION_GROUPS, "symbol_groups": SYMBOL_GROUPS,
+        "kind": _kind(kind), "items": _options(db, user, kind), "groups": OPTION_GROUPS,
+        "symbol_groups": SYMBOL_GROUPS,
     })
 
 
@@ -328,6 +364,7 @@ def reorder_options(ids: list[int] = Body(..., embed=True), db: Session = Depend
 @router.post("/options", dependencies=[Depends(verify_csrf)])
 def create_option(
     request: Request,
+    kind: str = Form("pizza"),
     name: str = Form(...),
     icon: str = Form(""),
     description: str = Form(""),
@@ -336,28 +373,29 @@ def create_option(
     db: Session = Depends(get_db),
     user: User = Depends(require_login),
 ):
+    kind = _kind(kind)
     if not name.strip():
         flash(request, "Bitte einen Namen angeben.", "error")
-        return RedirectResponse("/options", status_code=303)
-    item = ProductOption(owner_id=user.id, kind="pizza", active=True,
+        return RedirectResponse(f"/options?kind={kind}", status_code=303)
+    item = ProductOption(owner_id=user.id, kind=kind, active=True,
                          sort_order=_next_sort_order(db, ProductOption, user))
     _apply_option_form(db, user, item, name, icon, description, option_group, all_products, [])
     db.add(item)
     db.commit()
     if not item.all_products:
         # Direkt weiter zur Zuordnung - sonst waere die Option nirgends waehlbar
-        flash(request, f"Option „{item.name}“ angelegt – jetzt den Pizzen zuordnen.")
+        flash(request, f"Option „{item.name}“ angelegt – jetzt den {KINDS[kind]['plural']} zuordnen.")
         return RedirectResponse(f"/options/{item.id}", status_code=303)
     flash(request, f"Option „{item.name}“ angelegt.")
-    return RedirectResponse("/options", status_code=303)
+    return RedirectResponse(f"/options?kind={kind}", status_code=303)
 
 
 @router.get("/options/{item_id}")
 def edit_option_form(request: Request, item_id: int, db: Session = Depends(get_db), user: User = Depends(require_login)):
     item = _owned(db, ProductOption, item_id, user)
     return templates.TemplateResponse(request, "catalog/option_edit.html", {
-        "item": item, "groups": OPTION_GROUPS, "symbol_groups": SYMBOL_GROUPS,
-        "pizzas": _pizzas(db, user), "selected_ids": {p.id for p in item.products},
+        "item": item, "kind": item.kind, "groups": OPTION_GROUPS, "symbol_groups": SYMBOL_GROUPS,
+        "dishes": _dishes(db, user, item.kind), "selected_ids": {p.id for p in item.products},
     })
 
 
@@ -382,7 +420,7 @@ def update_option(
     item.active = active
     db.commit()
     flash(request, f"Option „{item.name}“ gespeichert.")
-    return RedirectResponse("/options", status_code=303)
+    return RedirectResponse(f"/options?kind={item.kind}", status_code=303)
 
 
 @router.post("/options/{item_id}/toggle", dependencies=[Depends(verify_csrf)])
@@ -390,7 +428,7 @@ def toggle_option(request: Request, item_id: int, db: Session = Depends(get_db),
     item = _owned(db, ProductOption, item_id, user)
     item.active = not item.active
     db.commit()
-    return RedirectResponse(f"/options#option-{item.id}", status_code=303)
+    return RedirectResponse(f"/options?kind={item.kind}#option-{item.id}", status_code=303)
 
 
 @router.post("/options/{item_id}/delete", dependencies=[Depends(verify_csrf)])
@@ -399,4 +437,4 @@ def delete_option(request: Request, item_id: int, db: Session = Depends(get_db),
     db.delete(item)
     db.commit()
     flash(request, f"Option „{item.name}“ gelöscht.")
-    return RedirectResponse("/options", status_code=303)
+    return RedirectResponse(f"/options?kind={item.kind}", status_code=303)

@@ -1,18 +1,20 @@
 {% extends "base.html" %}
-{% block title %}{{ item.name if item else 'Neue Pizza' }} – Bestell-Manager{% endblock %}
+{% set info = KINDS[kind] %}
+{% block title %}{{ item.name if item else info.label + ' anlegen' }} – Bestell-Manager{% endblock %}
 {% block content %}
 <div class="page-head">
-  <h1>{{ 'Pizza bearbeiten' if item else 'Neue Pizza' }}</h1>
-  <a class="btn" href="/pizzas">Zurück</a>
+  <h1>{{ info.label }} {{ 'bearbeiten' if item else 'anlegen' }}</h1>
+  <a class="btn" href="/dishes/{{ kind }}">Zurück</a>
 </div>
 
-<form method="post" action="{{ '/pizzas/%d' % item.id if item else '/pizzas' }}">
+<form method="post" action="{{ '/dishes/%s/%d' % (kind, item.id) if item else '/dishes/%s' % kind }}">
   {{ m.csrf() }}
   <div class="card">
     <div class="form-row">
       <div class="field">
         <label for="name">Name</label>
-        <input type="text" id="name" name="name" value="{{ item.name if item else '' }}" required maxlength="120" placeholder="z.B. Margherita">
+        <input type="text" id="name" name="name" value="{{ item.name if item else '' }}" required maxlength="120"
+               placeholder="{{ {'pizza': 'z.B. Margherita', 'starter': 'z.B. Kürbiscremesuppe', 'dessert': 'z.B. Eispalatschinke'}.get(kind, 'z.B. Gulasch') }}">
       </div>
       <div class="field">
         <label for="description">Beschreibung <span class="muted small">(optional)</span></label>
@@ -21,23 +23,25 @@
     </div>
     <div class="field">
       <label for="icon">Symbol</label>
-      {{ m.symbol_picker('icon', item.icon if item else '🍕', symbol_groups, 'icon') }}
+      {{ m.symbol_picker('icon', item.icon if item else info.icon, symbol_groups, 'icon') }}
     </div>
-    <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if not item or item.active }}> Aktiv (Gäste können sie bestellen)</label>
+    <label class="check"><input type="checkbox" name="active" value="1" {{ 'checked' if not item or item.active }}> Aktiv (Gäste können es bestellen)</label>
   </div>
 
-  <h2>Zutaten</h2>
-  {% for key, label, items in groups %}
-    <h3 class="section-title">{{ label }}</h3>
-    <div class="ing-grid">
-      {% for i in items %}
-        <label class="ing-tile">
-          <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" {{ 'checked' if i.id in selected_ids }}>
-          <span><b class="emoji">{{ i.icon }}</b>{{ i.name }}{% if not i.active %} <small class="muted">(inaktiv)</small>{% endif %}</span>
-        </label>
-      {% endfor %}
-    </div>
-  {% endfor %}
+  {% if kind == 'pizza' %}
+    <h2>Zutaten</h2>
+    {% for key, label, items in groups %}
+      <h3 class="section-title">{{ label }}</h3>
+      <div class="ing-grid">
+        {% for i in items %}
+          <label class="ing-tile">
+            <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" {{ 'checked' if i.id in selected_ids }}>
+            <span><b class="emoji">{{ i.icon }}</b>{{ i.name }}{% if not i.active %} <small class="muted">(inaktiv)</small>{% endif %}</span>
+          </label>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% endif %}
 
   <h2 style="margin-top:1.5rem">Optionen</h2>
   {% if global_options %}
@@ -50,13 +54,17 @@
       {% for o in manual_options %}
         <label class="ing-tile">
           <input type="checkbox" name="option_ids" value="{{ o.id }}" {{ 'checked' if o.id in selected_option_ids }}>
-          <span><b class="emoji">{{ o.icon }}</b>{{ o.name }}{% if not o.active %} <small class="muted">(inaktiv)</small>{% endif %}</span>
+          <span><b class="emoji">{{ o.icon }}</b>{{ o.name }} <small class="muted">({{ o.group_label }}{{ ', inaktiv' if not o.active }})</small></span>
         </label>
       {% endfor %}
     </div>
   {% elif not global_options %}
-    <p class="muted small">Noch keine Optionen angelegt – siehe <a href="/options">Optionen</a>.</p>
+    <p class="muted small">Noch keine Optionen für {{ info.plural }} angelegt – siehe <a href="/options?kind={{ kind }}">Optionen</a>.</p>
   {% endif %}
+  <label class="check" style="margin-top:.75rem">
+    <input type="checkbox" name="choice_required" value="1" {{ 'checked' if item and item.choice_required }}>
+    <span>Gast muss bei „Auswahl“ eine Möglichkeit wählen <span class="muted small">(z.B. Eissorte)</span></span>
+  </label>
 
   <button class="btn btn-primary btn-lg" type="submit">Speichern</button>
 </form>
