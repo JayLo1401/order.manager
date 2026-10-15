@@ -1,20 +1,29 @@
 """Kuechenmonitor: Live-Uebersicht der Bestellungen (Touch-optimiert)."""
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.auth.dependencies import require_login, require_login_api, verify_csrf_header
+from app.auth.dependencies import require_login, require_login_api, verify_csrf, verify_csrf_header
 from app.catalog.defaults import ensure_host_settings
 from app.catalog.routes import group_by_category
 from app.models.catalog import Ingredient
 from app.database import get_db
 from app.events.service import today_event
+from app.guest.routes import end_kitchen_entry, start_kitchen_entry
 from app.models.event import COURSES, Event, Guest, Order
 from app.models.push import PushSubscription
 from app.models.user import User
-from app.orders.service import OrderError, change_extra_orders, change_status, order_to_dict, set_sold_out
-from app.templating import templates
+from app.orders.service import (
+    OrderError,
+    change_extra_orders,
+    change_status,
+    find_guest,
+    order_to_dict,
+    set_sold_out,
+)
+from app.templating import flash, templates
 
 router = APIRouter(prefix="/kitchen")
 
@@ -37,6 +46,43 @@ def kitchen(
 ):
     event = _event_for(db, user, event_id)
     return templates.TemplateResponse(request, "kitchen.html", {"event": event, "is_today": event_id is None})
+
+
+@router.post("/entry", dependencies=[Depends(verify_csrf)])
+def start_entry(
+    request: Request,
+    name: str = Form(""),
+    table_no: str = Form(""),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login),
+):
+    """Bestellung fuer einen Gast erfassen, der direkt in der Kueche bestellt.
+    Oeffnet die normale Gaeste-Bestellseite im Kuechen-Modus (ohne Bestell-Limit);
+    danach geht es zurueck zum Kuechenmonitor. Gibt es den Namen schon, wird
+    die Bestellung diesem Gast zugeordnet."""
+    event = today_event(db, user)
+    name, table_no = " ".join(name.split())[:80], table_no.strip()[:20]
+    if event is None:
+        return RedirectResponse("/kitchen", status_code=303)
+    if not name and not table_no:
+        flash(request, "Bitte einen Namen oder eine Tischnummer angeben.", "error")
+        return RedirectResponse("/kitchen", status_code=303)
+    if event.current_course is None:
+        flash(request, "Bestellungen sind geschlossen – bitte zuerst oben einen Gang freigeben.", "error")
+        return RedirectResponse("/kitchen", status_code=303)
+    guest = find_guest(db, event, name, table_no)
+    if guest is None:
+        guest = Guest(event_id=event.id, name=name, table_no=table_no)
+        db.add(guest)
+        db.commit()
+    start_kitchen_entry(request, event, guest)
+    return RedirectResponse(f"/o/{event.token}/menu", status_code=303)
+
+
+@router.get("/entry/cancel")
+def cancel_entry(request: Request, user: User = Depends(require_login)):
+    end_kitchen_entry(request)
+    return RedirectResponse("/kitchen", status_code=303)
 
 
 @router.get("/api/orders")

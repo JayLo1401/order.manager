@@ -258,6 +258,18 @@
     });
   }
 
+  // ---------------------------------------------------------------- Bestellung erfassen
+  const entryModal = $("#entry-modal");
+  if (entryModal) {
+    $("#entry-open").addEventListener("click", () => {
+      entryModal.hidden = false;
+      $("#entry-name")?.focus();
+    });
+    entryModal.addEventListener("click", (ev) => {
+      if (ev.target === entryModal || ev.target.closest("[data-close-entry]")) entryModal.hidden = true;
+    });
+  }
+
   // ---------------------------------------------------------------- Zutaten "heute aus"
   const stockModal = $("#stock-modal");
 
@@ -371,6 +383,7 @@
     closeModal();
     if (stockModal) stockModal.hidden = true;
     if (coursesModal) coursesModal.hidden = true;
+    if (entryModal) entryModal.hidden = true;
   });
 
   $("#done-toggle").addEventListener("click", () => {

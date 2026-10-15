@@ -14,6 +14,7 @@
   <div class="actions">
     {% if event and is_today %}
       {{ m.course_switch(event, '/kitchen') }}
+      <button class="btn btn-sm btn-primary" type="button" id="entry-open" title="Bestellung für einen Gast direkt erfassen">➕ Bestellung</button>
       <button class="btn btn-sm" type="button" id="courses-open" title="Welche Gänge gibt es heute?">⚙️ Gänge</button>
       {% if 'main' in event.courses and event.main_kind == 'pizza' %}
         <button class="btn btn-sm" type="button" id="stock-open" title="Ausgegangene Zutaten für heute markieren">
@@ -48,6 +49,39 @@
 {% endif %}
 
 {% if event and is_today %}
+<div class="modal-backdrop" id="entry-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="entry-title">
+    <div class="modal-head">
+      <div>
+        <h2 id="entry-title">Bestellung erfassen</h2>
+        <p class="muted small" style="margin:.3rem 0 0">
+          Für einen Gast, der direkt bei dir bestellt{% if event.current_course %} – {{ event.course_label(event.current_course) }}{% endif %}.
+          Gibt es den Namen schon, wird die Bestellung diesem Gast zugeordnet. Der Gast kann sich später mit demselben Namen anmelden und seinen Status sehen.
+        </p>
+      </div>
+      <button class="btn btn-ghost" type="button" data-close-entry aria-label="Schließen" style="font-size:1.4rem">✕</button>
+    </div>
+    {% if event.current_course %}
+      <form method="post" action="/kitchen/entry">
+        {{ m.csrf() }}
+        <div class="form-row">
+          <div class="field">
+            <label for="entry-name">Name</label>
+            <input type="text" id="entry-name" name="name" maxlength="80" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="entry-table">Tisch <span class="muted small">(optional)</span></label>
+            <input type="text" id="entry-table" name="table_no" maxlength="20" inputmode="numeric" autocomplete="off">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-lg btn-block" type="submit">Weiter zur Auswahl</button>
+      </form>
+    {% else %}
+      <p class="flash flash-error">Bestellungen sind geschlossen – bitte zuerst oben einen Gang freigeben.</p>
+    {% endif %}
+  </div>
+</div>
+
 <div class="modal-backdrop" id="courses-modal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="courses-title">
     <div class="modal-head">
@@ -111,5 +145,5 @@
       readOnly: {{ 'false' if is_today else 'true' }}
     };
   </script>
-  {% if event %}<script src="/static/js/kitchen.js?v=8"></script>{% endif %}
+  {% if event %}<script src="/static/js/kitchen.js?v=9"></script>{% endif %}
 {% endblock %}

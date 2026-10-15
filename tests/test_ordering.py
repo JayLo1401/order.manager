@@ -212,12 +212,24 @@ def test_custom_pizza_respects_limits_and_inactive(client, db_session, admin):
     assert orders[0].is_custom and [i["name"] for i in orders[0].ingredients] == [ingredients[1].name]
 
 
-def test_duplicate_guest_name_rejected(client, db_session, admin):
+def test_duplicate_guest_name_asks_before_reuse(client, db_session, admin):
+    from app.models.event import Guest
+
     event = _create_link(client, db_session, admin)
     _join(_guest(client), event, name="Ben")
-    response = _join(_guest(client), event, name="ben")
+    second = _guest(client)
+    response = _join(second, event, name="ben")
     assert response.status_code == 200
-    assert "schon vergeben" in response.text
+    assert "wird bereits verwendet" in response.text and "Ja, das bin ich" in response.text
+    assert len(db_session.scalars(select(Guest)).all()) == 1
+
+    # Bestaetigt -> gleicher Gast, kein zweiter angelegt
+    token = csrf_from(second, f"/o/{event.token}")
+    response = second.post(f"/o/{event.token}/join", data={"name": "ben", "confirm": "1", "csrf_token": token},
+                           follow_redirects=False)
+    assert response.headers["location"] == f"/o/{event.token}/menu"
+    assert len(db_session.scalars(select(Guest)).all()) == 1
+    assert "Ben" in second.get(f"/o/{event.token}/status").text
 
 
 def test_table_mode(client, db_session, admin):
@@ -290,3 +302,73 @@ def test_delete_today_event(client, db_session, admin):
     assert guest.get(f"/o/{token}/status").status_code == 410
     new_event = _create_link(client, db_session, admin)
     assert new_event.token != token
+
+
+def test_kitchen_enters_order_for_guest(client, db_session, admin):
+    from app.models.event import Guest
+
+    event = _create_link(client, db_session, admin)
+    pizzas = db_session.scalars(select(Product).where(Product.owner_id == admin.id, Product.kind == "pizza")).all()
+    kitchen_csrf = csrf_from(client, "/kitchen")
+    assert 'id="entry-open"' in client.get("/kitchen").text
+
+    def kitchen_order(name, product):
+        response = client.post("/kitchen/entry", data={"name": name, "csrf_token": kitchen_csrf},
+                               follow_redirects=False)
+        assert response.headers["location"] == f"/o/{event.token}/menu"
+        menu = client.get(f"/o/{event.token}/menu").text
+        assert "Erfassung durch die Küche" in menu
+        response = client.post(f"/o/{event.token}/order", data={"product_id": product.id, "csrf_token": kitchen_csrf},
+                               follow_redirects=False)
+        assert response.headers["location"] == "/kitchen"
+        return response
+
+    kitchen_order("Opa", pizzas[0])
+    assert "Bestellung #1 für Opa erfasst" in client.get("/kitchen").text
+    # Kueche ist nicht ans Limit (1) gebunden und ordnet dem bestehenden Gast zu
+    kitchen_order("opa", pizzas[1])
+    orders = db_session.scalars(select(Order).order_by(Order.id)).all()
+    assert [o.item_name for o in orders] == [pizzas[0].name, pizzas[1].name]
+    assert len(db_session.scalars(select(Guest)).all()) == 1
+    # Kuechen-Modus ist danach beendet: Browser ist kein Gast mehr
+    assert client.get(f"/o/{event.token}/menu", follow_redirects=False).headers["location"] == f"/o/{event.token}"
+
+    # Gast meldet sich spaeter mit dem Namen an und sieht seine Bestellungen
+    guest = _guest(client)
+    token = csrf_from(guest, f"/o/{event.token}")
+    guest.post(f"/o/{event.token}/join", data={"name": "Opa", "confirm": "1", "csrf_token": token})
+    status = guest.get(f"/o/{event.token}/status").text
+    assert pizzas[0].name in status and pizzas[1].name in status
+    # ... aber als normaler Gast gilt sein Limit
+    guest.post(f"/o/{event.token}/order", data={"product_id": pizzas[0].id, "csrf_token": token})
+    assert len(db_session.scalars(select(Order)).all()) == 2
+
+
+def test_kitchen_entry_guards(client, db_session, admin):
+    event = _create_link(client, db_session, admin)
+    kitchen_csrf = csrf_from(client, "/kitchen")
+    # Ohne Name/Tisch bzw. bei geschlossenen Bestellungen geht es nicht
+    client.post("/kitchen/entry", data={"name": " ", "csrf_token": kitchen_csrf})
+    client.post("/link/course", data={"course": "", "csrf_token": kitchen_csrf})
+    response = client.post("/kitchen/entry", data={"name": "Opa", "csrf_token": kitchen_csrf}, follow_redirects=False)
+    assert response.headers["location"] == "/kitchen"
+    from app.models.event import Guest
+    assert db_session.scalars(select(Guest)).all() == []
+
+    # Abbrechen beendet den Kuechen-Modus
+    client.post("/link/course", data={"course": "main", "csrf_token": kitchen_csrf})
+    client.post("/kitchen/entry", data={"name": "Opa", "csrf_token": kitchen_csrf})
+    assert client.get("/kitchen/entry/cancel", follow_redirects=False).headers["location"] == "/kitchen"
+    assert client.get(f"/o/{event.token}/menu", follow_redirects=False).headers["location"] == f"/o/{event.token}"
+
+    # Ein Gast kann sich den Kuechen-Modus nicht erschleichen (kein Login)
+    guest = _guest(client)
+    _join(guest, event, name="Frech")
+    product = db_session.scalar(select(Product).where(Product.owner_id == admin.id, Product.kind == "pizza"))
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+    guest.post(f"/o/{event.token}/order", data={"product_id": product.id, "csrf_token": token})
+    guest.post(f"/o/{event.token}/order", data={"product_id": product.id, "csrf_token": token})
+    assert len(db_session.scalars(select(Order)).all()) == 1
+    assert guest.post("/kitchen/entry", data={"name": "X", "csrf_token": token},
+                      follow_redirects=False).status_code in (303, 401)
+    assert len(db_session.scalars(select(Order)).all()) == 1

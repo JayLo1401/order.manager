@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import verify_csrf, verify_csrf_header
@@ -18,6 +18,7 @@ from app.orders.service import (
     available_today,
     can_order_more,
     change_status,
+    find_guest,
     options_for,
     order_to_dict,
     place_order,
@@ -30,10 +31,12 @@ router = APIRouter(prefix="/o/{token}")
 
 
 class GuestContext:
-    def __init__(self, event: Event, host_settings: HostSettings, guest: Guest | None):
+    def __init__(self, event: Event, host_settings: HostSettings, guest: Guest | None, kitchen: bool = False):
         self.event = event
         self.settings = host_settings
         self.guest = guest
+        # Bestellung wird am Kuechenmonitor fuer den Gast erfasst
+        self.kitchen = kitchen
 
     @property
     def base(self) -> str:
@@ -53,11 +56,28 @@ class GuestContext:
         return self.kind == "pizza" and self.settings.allow_custom
 
     def can_order_more(self, db: Session) -> bool:
+        if self.kitchen:
+            return self.course is not None  # Kueche ist nicht ans Limit gebunden
         return can_order_more(db, self.guest, self.settings, self.course)
 
 
 def _guest_ids(request: Request) -> dict:
     return request.session.get("guests", {})
+
+
+def start_kitchen_entry(request: Request, event: Event, guest: Guest) -> None:
+    """Kuechenmonitor bestellt fuer einen Gast: Browser wird kurz zu diesem Gast."""
+    guests = _guest_ids(request)
+    guests[str(event.id)] = guest.id
+    request.session["guests"] = guests
+    request.session["kitchen_entry"] = event.id
+
+
+def end_kitchen_entry(request: Request) -> None:
+    event_id = request.session.pop("kitchen_entry", None)
+    guests = _guest_ids(request)
+    if event_id is not None and guests.pop(str(event_id), None) is not None:
+        request.session["guests"] = guests
 
 
 def load_context(token: str, request: Request, db: Session = Depends(get_db)) -> GuestContext:
@@ -68,7 +88,11 @@ def load_context(token: str, request: Request, db: Session = Depends(get_db)) ->
     guest = db.get(Guest, guest_id) if guest_id else None
     if guest is not None and guest.event_id != event.id:
         guest = None
-    return GuestContext(event, ensure_host_settings(db, event.owner_id), guest)
+    # Kuechen-Modus nur fuer den angemeldeten Gastgeber dieses Bestelltags
+    kitchen = (
+        request.session.get("kitchen_entry") == event.id and request.session.get("user_id") == event.owner_id
+    )
+    return GuestContext(event, ensure_host_settings(db, event.owner_id), guest, kitchen)
 
 
 def require_guest(ctx: GuestContext = Depends(load_context)) -> GuestContext:
@@ -99,6 +123,7 @@ def join(
     request: Request,
     name: str = Form(""),
     table_no: str = Form(""),
+    confirm: bool = Form(False),
     ctx: GuestContext = Depends(load_context),
     db: Session = Depends(get_db),
 ):
@@ -112,16 +137,19 @@ def join(
         error = "Bitte gib deinen Namen ein."
     elif mode in ("table", "name_and_table") and not table_no:
         error = "Bitte gib deine Tischnummer ein."
-    elif name and db.scalar(select(Guest.id).where(
-        Guest.event_id == ctx.event.id, func.lower(Guest.name) == name.lower(), Guest.table_no == table_no
-    )) is not None:
-        error = "Dieser Name ist heute schon vergeben – ergänze z.B. den Anfangsbuchstaben deines Nachnamens."
     if error:
         return _render(request, "join.html", ctx, error=error, form={"name": name, "table_no": table_no})
 
-    guest = Guest(event_id=ctx.event.id, name=name, table_no=table_no)
-    db.add(guest)
-    db.commit()
+    # Name schon vergeben (z.B. Bestellung wurde in der Kueche erfasst, oder
+    # zweites Handy): nach Rueckfrage als dieser Gast weitermachen.
+    guest = find_guest(db, ctx.event, name, table_no) if name else None
+    if guest is not None and not confirm:
+        return _render(request, "join.html", ctx, error=None, form={"name": name, "table_no": table_no},
+                       name_taken=True)
+    if guest is None:
+        guest = Guest(event_id=ctx.event.id, name=name, table_no=table_no)
+        db.add(guest)
+        db.commit()
     guests = _guest_ids(request)
     guests[str(ctx.event.id)] = guest.id
     request.session["guests"] = guests
@@ -182,12 +210,17 @@ def order(
     db: Session = Depends(get_db),
 ):
     try:
-        place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note, option_ids, skip)
+        order = place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note, option_ids,
+                            skip, ignore_limit=ctx.kitchen)
     except OrderError as exc:
         flash(request, str(exc), "error")
         return RedirectResponse(f"{ctx.base}/{'custom' if not product_id and ctx.allow_custom else 'menu'}",
                                 status_code=303)
     db.commit()
+    if ctx.kitchen:
+        end_kitchen_entry(request)
+        flash(request, f"Bestellung #{order.number} für {ctx.guest.label or 'Gast'} erfasst: {order.item_name}")
+        return RedirectResponse("/kitchen", status_code=303)
     return RedirectResponse(f"{ctx.base}/status?ok=1", status_code=303)
 
 

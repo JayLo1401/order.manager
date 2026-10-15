@@ -65,6 +65,13 @@ def active_order_count(db: Session, guest: Guest, course: str) -> int:
     )) or 0
 
 
+def find_guest(db: Session, event: Event, name: str, table_no: str) -> Guest | None:
+    """Gleicher Name (ohne Gross-/Kleinschreibung) und gleicher Tisch = derselbe Gast."""
+    return db.scalar(select(Guest).where(
+        Guest.event_id == event.id, func.lower(Guest.name) == name.lower(), Guest.table_no == table_no
+    ).order_by(Guest.id).limit(1))
+
+
 def can_order_more(db: Session, guest: Guest, host_settings: HostSettings, course: str | None) -> bool:
     """Das Limit gilt pro Gang. course=None (geschlossen) -> nie."""
     if course is None:
@@ -131,12 +138,14 @@ def place_order(
     note: str,
     option_ids: list[int] | None = None,
     skip: bool = False,
+    ignore_limit: bool = False,
 ) -> Order:
-    """skip=True: "Ich moechte keine Vorspeise/Nachspeise" (nur bei diesen Gaengen)."""
+    """skip=True: "Ich moechte keine Vorspeise/Nachspeise" (nur bei diesen Gaengen).
+    ignore_limit=True: Erfassung durch die Kueche, dort gilt das Bestell-Limit nicht."""
     course = event.current_course
     if course is None:
         raise OrderError("Gerade kann nichts bestellt werden.")
-    if not can_order_more(db, guest, host_settings, course):
+    if not ignore_limit and not can_order_more(db, guest, host_settings, course):
         raise OrderError("Du hast bereits die maximale Anzahl an Bestellungen erreicht.")
     kind = event.kind_for(course)
 

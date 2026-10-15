@@ -9,12 +9,26 @@
     <div class="flash flash-error">Gerade kann nichts bestellt werden – du kannst dich aber schon anmelden.</div>
   {% endif %}
   {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  {% if name_taken %}
+    <div class="name-taken">
+      <p><strong>Der Name „{{ form.name }}“{% if form.table_no %} (Tisch {{ form.table_no }}){% endif %} wird bereits verwendet.</strong></p>
+      <p class="muted small">Wirklich diesen verwenden? Du siehst und bestellst dann als dieser Gast – z.B. wenn die Küche deine Bestellung schon aufgenommen hat.</p>
+      <form method="post" action="{{ ctx.base }}/join">
+        {{ m.csrf() }}
+        <input type="hidden" name="name" value="{{ form.name }}">
+        <input type="hidden" name="table_no" value="{{ form.table_no }}">
+        <input type="hidden" name="confirm" value="1">
+        <button class="btn btn-primary btn-lg btn-block" type="submit">Ja, das bin ich</button>
+      </form>
+      <p class="muted small" style="margin:.75rem 0 .25rem">Oder einen anderen Namen wählen (z.B. mit Anfangsbuchstaben des Nachnamens):</p>
+    </div>
+  {% endif %}
   <form method="post" action="{{ ctx.base }}/join">
     {{ m.csrf() }}
     {% if mode in ('name', 'name_and_table') %}
       <div class="field">
         <label for="name">Dein Name</label>
-        <input type="text" id="name" name="name" value="{{ form.name or '' }}" required maxlength="80" autocomplete="given-name" autofocus>
+        <input type="text" id="name" name="name" value="{{ '' if name_taken else form.name or '' }}" required maxlength="80" autocomplete="given-name" {{ '' if name_taken else 'autofocus' }}>
       </div>
     {% endif %}
     {% if mode in ('table', 'name_and_table') %}

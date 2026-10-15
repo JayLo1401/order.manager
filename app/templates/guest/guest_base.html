@@ -11,7 +11,7 @@
   <meta name="theme-color" content="#1b6b3e">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Bestellung">
-  <link rel="stylesheet" href="/static/css/app.css?v=9">
+  <link rel="stylesheet" href="/static/css/app.css?v=10">
 </head>
 <body class="guest">
   <header class="guest-header">
@@ -19,6 +19,12 @@
     <h1>{% block heading %}{{ ctx.event.title if ctx else 'Pizza bestellen' }}{% endblock %}</h1>
   </header>
   <main class="guest-main">
+    {% if ctx and ctx.kitchen and ctx.guest %}
+      <div class="kitchen-entry-bar">
+        <span>🧑‍🍳 Erfassung durch die Küche für <b>{{ ctx.guest.label or 'Gast' }}</b></span>
+        <a class="btn btn-sm" href="/kitchen/entry/cancel">Abbrechen</a>
+      </div>
+    {% endif %}
     {{ m.flashes() }}
     {% block content %}{% endblock %}
   </main>
