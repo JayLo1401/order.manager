@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.admin.routes import router as admin_router
+from app.api.routes import router as api_router
 from app.auth.dependencies import require_login
 from app.auth.routes import router as auth_router
 from app.catalog.routes import router as catalog_router
@@ -123,3 +124,4 @@ app.include_router(events_router)
 app.include_router(settings_router)
 app.include_router(kitchen_router)
 app.include_router(guest_router)
+app.include_router(api_router)

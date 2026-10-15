@@ -113,6 +113,7 @@ Hinweise:
 - `APP_BIND=127.0.0.1:8001` bedeutet: Die App ist nur lokal für den Reverse-Proxy erreichbar, nicht direkt aus dem Internet. Der service_manager belegt Port 8000, deshalb 8001. Prüfen, ob 8001 frei ist: `ss -ltnp | grep 8001`. Kommt keine Ausgabe, ist der Port frei.
 - `ADMIN_*` wird nur beim allerersten Start verwendet. Das Passwort danach in der App ändern.
 - Die `.env` ist nicht im Git und wird bei Updates nie überschrieben.
+- Optional für das home_radio: `API_PASSWORD=<Zufallswert>` (und ggf. `API_USER`, `API_OWNER_EMAIL`) ergänzen. Dann liefert `GET https://bestellung.jaycloud.at/api/v1/today` mit HTTP Basic Auth den heutigen Bestelltag samt Küchen-Status und QR-Code. Ohne `API_PASSWORD` ist die API abgeschaltet.
 
 ## Schritt 6 – Erster Start
 

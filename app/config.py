@@ -22,6 +22,13 @@ class Settings(BaseSettings):
 
     vapid_subject: str = ""
 
+    # Lese-API fuer Anzeigen (z.B. home_radio), HTTP Basic Auth. Leeres
+    # Passwort = API abgeschaltet. Gezeigt wird der Bestelltag von
+    # api_owner_email (leer = admin_email).
+    api_user: str = "radio"
+    api_password: str = ""
+    api_owner_email: str = ""
+
     @property
     def guest_host(self) -> str | None:
         return urlparse(self.guest_base_url).hostname if self.guest_base_url else None
