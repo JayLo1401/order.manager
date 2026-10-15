@@ -1,19 +1,18 @@
 """Lese-API fuer externe Anzeigen (z.B. das home_radio): Gibt es heute einen
 Bestelltag? Wenn ja: Titel, Status der Kueche und QR-Code zum Bestellen.
 
-Authentifizierung per HTTP Basic mit API_USER / API_PASSWORD aus der .env -
-bewusst getrennt vom Admin-Login, damit das Geraet nur lesen kann.
+Authentifizierung per HTTP Basic mit den normalen Zugangsdaten (E-Mail +
+Passwort) - jeder Gastgeber sieht so seinen eigenen Bestelltag.
 """
 
 import base64
-import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.auth.security import verify_password
 from app.database import get_db
 from app.events.service import guest_url, qr_png, qr_svg, today_event
 from app.models.event import Event
@@ -24,15 +23,15 @@ router = APIRouter(prefix="/api/v1")
 basic = HTTPBasic(auto_error=False)
 
 
-def require_api_auth(credentials: HTTPBasicCredentials | None = Depends(basic)) -> None:
-    if not settings.api_password:
-        raise HTTPException(status_code=404)  # API nicht eingerichtet
-    ok = credentials is not None and (
-        secrets.compare_digest(credentials.username.encode(), settings.api_user.encode())
-        & secrets.compare_digest(credentials.password.encode(), settings.api_password.encode())
-    )
-    if not ok:
+def api_user(credentials: HTTPBasicCredentials | None = Depends(basic), db: Session = Depends(get_db)) -> User:
+    """Wie beim Login: E-Mail + Passwort, nur freigeschaltete Benutzer."""
+    user = None
+    if credentials is not None:
+        email = credentials.username.strip().lower()
+        user = db.scalar(select(User).where(func.lower(User.email) == email))
+    if user is None or not verify_password(user.password_hash, credentials.password) or user.status != "approved":
         raise HTTPException(status_code=401, headers={"WWW-Authenticate": 'Basic realm="bestell-manager"'})
+    return user
 
 
 def course_status(event: Event) -> dict:
@@ -45,11 +44,9 @@ def course_status(event: Event) -> dict:
     return {"code": course, "label": f"{noun} werden angenommen", "icon": event.course_icon(course)}
 
 
-@router.get("/today", dependencies=[Depends(require_api_auth)])
-def today(request: Request, db: Session = Depends(get_db)):
-    owner_email = (settings.api_owner_email or settings.admin_email).strip().lower()
-    owner = db.scalar(select(User).where(func.lower(User.email) == owner_email))
-    event = today_event(db, owner) if owner else None
+@router.get("/today")
+def today(request: Request, db: Session = Depends(get_db), user: User = Depends(api_user)):
+    event = today_event(db, user)
     if event is None:
         return {"active": False, "date": today_local().isoformat()}
     url = guest_url(request, event)
@@ -57,7 +54,7 @@ def today(request: Request, db: Session = Depends(get_db)):
         "active": True,
         "date": event.day.isoformat(),
         "title": event.title,
-        "host_name": owner.name,
+        "host_name": user.name,
         "status": course_status(event),
         "courses": [
             {"code": c, "label": event.course_label(c), "icon": event.course_icon(c)} for c in event.courses

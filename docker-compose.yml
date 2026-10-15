@@ -30,9 +30,6 @@ services:
       ADMIN_BASE_URL: ${ADMIN_BASE_URL:-}
       GUEST_BASE_URL: ${GUEST_BASE_URL:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
-      API_USER: ${API_USER:-radio}
-      API_PASSWORD: ${API_PASSWORD:-}
-      API_OWNER_EMAIL: ${API_OWNER_EMAIL:-}
       LOG_DIR: /app/data/logs
     volumes:
       - ./data/logs:/app/data/logs
