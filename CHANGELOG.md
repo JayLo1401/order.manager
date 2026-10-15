@@ -4,11 +4,7 @@ Alle nennenswerten Änderungen je Version. Format angelehnt an [Keep a Changelog
 
 ## [1.0.1] – 2026-10-15
 
-- Lizenz: [PolyForm Noncommercial 1.0.0](LICENSE.md) – frei für private und nicht-kommerzielle Nutzung, kommerzielle Nutzung nicht erlaubt.
-
-## [1.0.0] – 2026-10-15
-
-Erste veröffentlichte Version.
+Erste veröffentlichte Version, unter der Lizenz [PolyForm Noncommercial 1.0.0](LICENSE.md) – frei für private und nicht-kommerzielle Nutzung, kommerzielle Nutzung nicht erlaubt.
 
 ### Gäste
 
@@ -44,4 +40,3 @@ Erste veröffentlichte Version.
 - Versionsnummer in der Fußzeile der Verwaltung und unter `/healthz`.
 
 [1.0.1]: https://github.com/JayLo1401/order.manager/releases/tag/v1.0.1
-[1.0.0]: https://github.com/JayLo1401/order.manager/releases/tag/v1.0.0
