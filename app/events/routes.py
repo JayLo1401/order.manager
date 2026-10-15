@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Request
 from fastapi.responses import RedirectResponse, Response
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import require_login, verify_csrf
@@ -12,7 +12,8 @@ from app.auth.routes import safe_next
 from app.auth.security import generate_token
 from app.database import get_db
 from app.events.service import get_or_create_today_event, guest_url, qr_png, qr_svg, today_event
-from app.models.event import Event, Order
+from app.models.event import Event, Guest, Order
+from app.models.push import PushSubscription
 from app.models.user import User
 from app.orders.service import OrderError, set_courses, set_current_course
 from app.templating import flash, templates
@@ -35,6 +36,7 @@ def link_page(request: Request, db: Session = Depends(get_db), user: User = Depe
     share_text = f"🍽️ {event.title}: Hier kannst du bestellen: {url}" if event else ""
     return templates.TemplateResponse(request, "events/link.html", {
         "event": event,
+        "order_count": len(event.orders) if event else 0,
         "url": url,
         "qr": qr_svg(url) if url else None,
         "whatsapp_url": f"https://wa.me/?text={quote(share_text)}" if event else None,
@@ -58,6 +60,23 @@ def regenerate(request: Request, db: Session = Depends(get_db), user: User = Dep
         event.token = generate_token(24)
         db.commit()
         flash(request, "Neuer Link erzeugt. Der alte Link/QR-Code funktioniert nicht mehr.")
+    return RedirectResponse("/link", status_code=303)
+
+
+@router.post("/delete", dependencies=[Depends(verify_csrf)])
+def delete_today(request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)):
+    """Heutigen Bestelltag samt Gaesten und Bestellungen endgueltig loeschen
+    (z.B. nach einem Test). Link/QR-Code sind danach ungueltig."""
+    event = today_event(db, user)
+    if event is not None:
+        guest_ids = select(Guest.id).where(Guest.event_id == event.id)
+        # Explizit statt nur per FK-Cascade, damit es auch ohne DB-Cascade sauber ist
+        db.execute(delete(PushSubscription).where(PushSubscription.guest_id.in_(guest_ids)))
+        db.execute(delete(Order).where(Order.event_id == event.id))
+        db.execute(delete(Guest).where(Guest.event_id == event.id))
+        db.delete(event)
+        db.commit()
+        flash(request, "Bestelltag gelöscht. Der Link/QR-Code funktioniert nicht mehr.")
     return RedirectResponse("/link", status_code=303)
 
 

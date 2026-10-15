@@ -267,3 +267,26 @@ def test_guest_host_only_serves_guest_pages(client, db_session, admin, monkeypat
     assert guest.get(f"/o/{event.token}").status_code == 200
     # Link zeigt auf die Gaeste-Domain
     assert re.search(rf"https://pizza\.test/o/{event.token}", client.get("/link").text)
+
+
+def test_delete_today_event(client, db_session, admin):
+    from app.models.event import Guest
+
+    event = _create_link(client, db_session, admin)
+    token = event.token
+    guest = _guest(client)
+    _join(guest, event)
+    product = db_session.scalar(select(Product).where(Product.owner_id == admin.id))
+    guest.post(f"/o/{token}/order", data={"product_id": product.id, "csrf_token": csrf_from(guest, f"/o/{token}/menu")})
+    assert "Bestelltag löschen" in client.get("/link").text
+
+    assert client.post("/link/delete", data={}).status_code >= 400  # ohne CSRF
+    client.post("/link/delete", data={"csrf_token": csrf_from(client, "/link")})
+    db_session.expire_all()
+    assert db_session.scalars(select(Event)).all() == []
+    assert db_session.scalars(select(Order)).all() == []
+    assert db_session.scalars(select(Guest)).all() == []
+    # Alter Link ist tot, ein neuer kann erstellt werden
+    assert guest.get(f"/o/{token}/status").status_code == 410
+    new_event = _create_link(client, db_session, admin)
+    assert new_event.token != token

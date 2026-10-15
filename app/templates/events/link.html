@@ -32,6 +32,10 @@
       <form method="post" action="/link/regenerate" class="inline" data-confirm="Neuen Link erzeugen? Der bisherige Link und QR-Code funktionieren dann nicht mehr.">
         {{ m.csrf() }}<button class="btn btn-danger">🔄 Neuen Link erzeugen</button>
       </form>
+      <form method="post" action="/link/delete" class="inline"
+            data-confirm="Bestelltag heute komplett löschen?{% if order_count %} Dabei werden auch alle {{ order_count }} Bestellungen und Gäste gelöscht.{% endif %} Link und QR-Code funktionieren danach nicht mehr. Das kann nicht rückgängig gemacht werden.">
+        {{ m.csrf() }}<button class="btn btn-danger">🗑️ Bestelltag löschen</button>
+      </form>
     </div>
   </div>
 </div>
