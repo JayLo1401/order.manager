@@ -54,7 +54,7 @@ def kitchen(
 @router.post("/entry", dependencies=[Depends(verify_csrf)])
 def start_entry(
     request: Request,
-    guest_id: int | None = Form(None),
+    guest_id: str = Form(""),  # leer = "Neuer Gast"
     name: str = Form(""),
     table_no: str = Form(""),
     db: Session = Depends(get_db),
@@ -72,7 +72,7 @@ def start_entry(
         flash(request, "Bestellungen sind geschlossen – bitte zuerst oben einen Gang freigeben.", "error")
         return RedirectResponse("/kitchen", status_code=303)
     if guest_id:
-        guest = db.get(Guest, guest_id)
+        guest = db.get(Guest, int(guest_id)) if guest_id.isdigit() else None
         if guest is None or guest.event_id != event.id:
             raise HTTPException(status_code=404)
         start_kitchen_entry(request, event, guest)

@@ -313,7 +313,7 @@ def test_kitchen_enters_order_for_guest(client, db_session, admin):
     assert 'id="entry-open"' in client.get("/kitchen").text
 
     def kitchen_order(name, product):
-        response = client.post("/kitchen/entry", data={"name": name, "csrf_token": kitchen_csrf},
+        response = client.post("/kitchen/entry", data={"guest_id": "", "name": name, "csrf_token": kitchen_csrf},
                                follow_redirects=False)
         assert response.headers["location"] == f"/o/{event.token}/menu"
         menu = client.get(f"/o/{event.token}/menu").text
@@ -408,6 +408,6 @@ def test_kitchen_entry_follows_settings_and_lists_guests(client, db_session, adm
     assert 'id="entry-table"' in kitchen and 'id="entry-name"' not in kitchen
     client.post("/kitchen/entry", data={"name": "Egal", "csrf_token": kitchen_csrf})
     assert db_session.scalar(select(Guest).where(Guest.name == "Egal")) is None
-    client.post("/kitchen/entry", data={"name": "Egal", "table_no": "4", "csrf_token": kitchen_csrf})
+    client.post("/kitchen/entry", data={"guest_id": "", "name": "Egal", "table_no": "4", "csrf_token": kitchen_csrf})
     guest = db_session.scalar(select(Guest).where(Guest.table_no == "4"))
     assert guest is not None and guest.name == ""
