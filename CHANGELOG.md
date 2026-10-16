@@ -15,11 +15,14 @@ Alle nennenswerten Änderungen je Version. Format angelehnt an [Keep a Changelog
 
 - Nachschlag-Anfragen erscheinen oben als Leiste (mit Ton) und lassen sich erlauben oder ablehnen; der Gast bekommt eine Push-Nachricht.
 - Abgeänderte Pizzen zeigen weggelassene und hinzugefügte Zutaten deutlich auf Kachel und im Detail.
+- Schnellknöpfe „In Arbeit“ und „Fertig“ direkt auf den Kacheln – ein Tipp statt Dialog. Ein Tipp auf die Kachel zeigt weiterhin alle Details.
+- Einrichtung beim ersten Öffnen eines frischen Bestelltags: Welche Gänge gibt es heute, und womit geht es los (Vorspeise, Hauptspeise, Nachspeise oder noch geschlossen)?
 
 ### Verwaltung
 
 - Bestell-Limit pro Gast getrennt für Vorspeise, Hauptspeise und Nachspeise einstellbar (z.B. 2 Vorspeisen, 1 Hauptspeise). Das bisherige Limit wird für alle Gänge übernommen.
 - Screenshots im Ordner `screenshots/`.
+- Umbenannt in „Order Manager“.
 
 ## [1.0.1] – 2026-10-15
 

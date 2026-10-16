@@ -298,7 +298,7 @@ Platzhalter: authentik läuft unter `auth.example.com`, die App unter `bestellun
 1. In authentik als Admin anmelden → **Admin interface**.
 2. **Applications → Applications → Create with Provider** (bzw. „Create with wizard“).
 3. **Application:**
-   - Name: `Bestell-Manager`
+   - Name: `Order Manager`
    - Slug: `bestell-manager` (merken, steckt später im Issuer)
    - Launch URL: `https://bestellung.example.com/login/oidc` – damit meldet ein Klick im authentik-Dashboard direkt an (nicht nur die Domain eintragen, sonst landet man auf der Login-Seite)
 4. **Provider-Typ:** `OAuth2/OpenID Provider`.

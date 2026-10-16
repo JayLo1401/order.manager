@@ -23,6 +23,8 @@ from app.orders.service import (
     find_guest,
     order_to_dict,
     pending_extra_requests,
+    set_courses,
+    set_current_course,
     set_sold_out,
 )
 from app.templating import flash, templates
@@ -47,10 +49,41 @@ def kitchen(
     user: User = Depends(require_login),
 ):
     event = _event_for(db, user, event_id)
+    # Frischer Bestelltag ohne Gaeste: erst fragen, welche Gaenge es gibt und womit es losgeht
+    needs_setup = (
+        event is not None and event_id is None and not event.setup_done
+        and db.scalar(select(func.count(Guest.id)).where(Guest.event_id == event.id)) == 0
+    )
     return templates.TemplateResponse(request, "kitchen.html", {
-        "event": event, "is_today": event_id is None,
+        "event": event, "is_today": event_id is None, "needs_setup": needs_setup,
         "identity": ensure_host_settings(db, user.id).guest_identity,
     })
+
+
+@router.post("/setup", dependencies=[Depends(verify_csrf)])
+def setup_today(
+    request: Request,
+    background: BackgroundTasks,
+    courses: list[str] = Form(default=[]),
+    main_kind: str = Form("pizza"),
+    start: str = Form(""),  # leer = noch geschlossen
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login),
+):
+    """Einrichtungs-Dialog: Gaenge fuer heute und der Gang, mit dem es losgeht."""
+    event = today_event(db, user)
+    if event is None:
+        return RedirectResponse("/kitchen", status_code=303)
+    try:
+        set_courses(event, courses, main_kind)
+        set_current_course(db, event, start if start in event.courses else None, background)
+    except OrderError as exc:
+        flash(request, str(exc), "error")
+        return RedirectResponse("/kitchen", status_code=303)
+    db.commit()
+    flash(request, f"Los geht's – {event.course_label(event.current_course)} ist freigegeben."
+          if event.current_course else "Gänge gespeichert. Bestellungen sind noch geschlossen.")
+    return RedirectResponse("/kitchen", status_code=303)
 
 
 @router.post("/entry", dependencies=[Depends(verify_csrf)])

@@ -391,5 +391,6 @@ def set_courses(event: Event, courses: list[str], main_kind: str) -> None:
         raise OrderError("Mindestens ein Gang muss angeboten werden.")
     event.courses = courses
     event.main_kind = main_kind if main_kind in MAIN_KINDS else "pizza"
+    event.setup_done = True
     if event.current_course not in courses:
         event.current_course = None

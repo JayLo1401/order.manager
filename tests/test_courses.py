@@ -360,3 +360,44 @@ def test_order_limit_per_course(client, db_session, admin, setup):
     switch(client, "dessert")
     for n in range(1, 4):
         assert len(order(product_id=pancake.id, option_ids=[vanilla.id])) == n
+
+
+def test_kitchen_setup_for_fresh_event(client, db_session, admin):
+    login(client, "admin@test.at", "geheim123")
+    response = client.post("/link/create", data={"next": "/kitchen", "csrf_token": csrf_from(client, "/kitchen")},
+                           follow_redirects=False)
+    assert response.headers["location"] == "/kitchen"
+    event = db_session.scalar(select(Event))
+    assert not event.setup_done
+    assert 'id="setup-modal"' in client.get("/kitchen").text
+
+    # Gaenge und Start in einem Rutsch; Start muss ein gewaehlter Gang sein
+    client.post("/kitchen/setup", data={
+        "courses": ["starter", "main"], "main_kind": "pizza", "start": "starter",
+        "csrf_token": csrf_from(client, "/kitchen"),
+    })
+    db_session.expire_all()
+    assert event.courses == ["starter", "main"] and event.current_course == "starter" and event.setup_done
+    assert 'id="setup-modal"' not in client.get("/kitchen").text
+
+    client.post("/kitchen/setup", data={
+        "courses": ["main", "dessert"], "main_kind": "main", "start": "starter",
+        "csrf_token": csrf_from(client, "/kitchen"),
+    })
+    db_session.expire_all()
+    assert event.courses == ["main", "dessert"] and event.main_kind == "main" and event.current_course is None
+
+
+def test_kitchen_setup_skipped_when_guests_or_configured(client, db_session, admin):
+    login(client, "admin@test.at", "geheim123")
+    client.post("/link/create", data={"csrf_token": csrf_from(client, "/link")})
+    event = db_session.scalar(select(Event))
+    guest = TestClient(client.app, base_url="http://bestellung.test")
+    guest.post(f"/o/{event.token}/join", data={"name": "Gast", "csrf_token": csrf_from(guest, f"/o/{event.token}")})
+    assert 'id="setup-modal"' not in client.get("/kitchen").text  # schon ein Gast da
+
+    db_session.query(Event).delete()
+    db_session.commit()
+    client.post("/link/create", data={"csrf_token": csrf_from(client, "/link")})
+    set_courses(client, ["main"])  # Gaenge auf der Link-Seite gespeichert = eingerichtet
+    assert 'id="setup-modal"' not in client.get("/kitchen").text

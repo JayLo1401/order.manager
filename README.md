@@ -1,4 +1,4 @@
-# Bestell-Manager
+# Order Manager
 
 Selbst gehostete Web-App für Bestellungen bei Feiern und Abenden mit Freunden: Gäste scannen einen QR-Code, bestellen am Handy und sehen live, wann ihr Essen fertig ist. Die Küche arbeitet die Bestellungen an einem Touch-Monitor ab.
 
@@ -193,4 +193,4 @@ tests/
 
 ## Lizenz
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md) – der Quellcode ist offen einsehbar, Nutzung und Änderung sind für private und nicht-kommerzielle Zwecke frei (auch für Vereine, Schulen und gemeinnützige Organisationen). **Kommerzielle Nutzung ist nicht erlaubt**, z.B. den Bestell-Manager als bezahlten Dienst anzubieten, zu verkaufen oder in einem Gastronomiebetrieb einzusetzen. Für eine kommerzielle Lizenz bitte über GitHub anfragen.
+[PolyForm Noncommercial 1.0.0](LICENSE.md) – der Quellcode ist offen einsehbar, Nutzung und Änderung sind für private und nicht-kommerzielle Zwecke frei (auch für Vereine, Schulen und gemeinnützige Organisationen). **Kommerzielle Nutzung ist nicht erlaubt**, z.B. den Order Manager als bezahlten Dienst anzubieten, zu verkaufen oder in einem Gastronomiebetrieb einzusetzen. Für eine kommerzielle Lizenz bitte über GitHub anfragen.

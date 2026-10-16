@@ -30,7 +30,7 @@ from app.templating import templates
 
 configure_logging()
 
-app = FastAPI(title="Bestell-Manager", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="Order Manager", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
 
 static_dir = Path(__file__).parent / "static"
 

@@ -300,7 +300,15 @@ body.is-fullscreen .site-header { display: none; }
 }
 .extra-request .emoji { font-size: 1.4rem; }
 .extra-request-text { font-size: 1.05rem; }
-.tile-status { position: absolute; right: .7rem; bottom: .6rem; }
+.tile-status { align-self: flex-start; }
+/* Schnellknoepfe: gross genug fuer nasse/mehlige Finger */
+.tile-actions { margin-top: auto; padding-top: .5rem; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .5rem; }
+.tile-actions .btn { min-height: 52px; font-size: 1.05rem; font-weight: 700; justify-content: center; }
+.tile:has(.tile-actions .btn:active) { transform: none; }
+/* Einrichtungs-Dialog */
+.setup-choices { display: grid; gap: .5rem; margin: .75rem 0; }
+.setup-choice > span { min-height: 60px; font-size: 1.1rem; font-weight: 600; }
+.setup-main-kind { margin: -.15rem 0 .25rem 1.25rem; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--primary-soft); } }
 
 .section-title { display: flex; align-items: center; gap: .5rem; margin: 1.5rem 0 .6rem; color: var(--muted); font-size: 1rem; }

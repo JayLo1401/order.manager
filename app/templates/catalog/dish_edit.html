@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% set info = KINDS[kind] %}
-{% block title %}{{ item.name if item else info.label + ' anlegen' }} – Bestell-Manager{% endblock %}
+{% block title %}{{ item.name if item else info.label + ' anlegen' }} – Order Manager{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ info.label }} {{ 'bearbeiten' if item else 'anlegen' }}</h1>

@@ -34,7 +34,7 @@
     <div class="big emoji">🍕</div>
     <p>Für heute gibt es noch keinen Bestell-Link.</p>
     <form method="post" action="/link/create">
-      {{ m.csrf() }}
+      {{ m.csrf() }}<input type="hidden" name="next" value="/kitchen">
       <button class="btn btn-primary btn-lg" type="submit">Bestell-Link für heute erstellen</button>
     </form>
   </div>
@@ -47,6 +47,61 @@
     <button class="btn btn-sm" type="button" id="done-toggle">Fertige anzeigen</button>
   </h2>
   <div id="tiles-done" hidden></div>
+{% endif %}
+
+{% if needs_setup %}
+{# Frischer Bestelltag: zuerst Gaenge festlegen, dann den Start waehlen #}
+<div class="modal-backdrop" id="setup-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+    <form method="post" action="/kitchen/setup" id="setup-form">
+      {{ m.csrf() }}
+      <div data-setup-step="1">
+        <p class="muted small" style="margin:0">Schritt 1 von 2</p>
+        <h2 id="setup-title" style="margin:.2rem 0 .3rem">Was gibt es heute?</h2>
+        <p class="muted" style="margin-top:0">Tippe alle Gänge an, die du heute anbietest.</p>
+        <div class="setup-choices">
+          {% for c, label in COURSES.items() %}
+            <label class="ing-tile setup-choice">
+              <input type="checkbox" name="courses" value="{{ c }}" data-label="{{ label }}" {{ 'checked' if c in event.courses }}>
+              <span><b class="emoji">{{ KINDS[c].icon if c != 'main' else '🍽️' }}</b><span class="ing-name">{{ label }}</span></span>
+            </label>
+            {% if c == 'main' %}
+              <div class="setup-main-kind" data-main-kind>
+                <label class="check"><input type="radio" name="main_kind" value="pizza" {{ 'checked' if event.main_kind == 'pizza' }}> <span class="emoji">🍕</span> Pizza</label>
+                <label class="check"><input type="radio" name="main_kind" value="main" {{ 'checked' if event.main_kind == 'main' }}> <span class="emoji">🍽️</span> Andere Hauptgerichte</label>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <p class="flash flash-error" data-setup-error hidden>Bitte wähle mindestens einen Gang.</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-lg btn-block" data-setup-next>Weiter ›</button>
+        </div>
+      </div>
+      <div data-setup-step="2" hidden>
+        <p class="muted small" style="margin:0">Schritt 2 von 2</p>
+        <h2 style="margin:.2rem 0 .3rem">Womit startest du?</h2>
+        <p class="muted" style="margin-top:0">Gäste können nur im freigegebenen Gang bestellen. Umschalten kannst du jederzeit oben in der Leiste.</p>
+        <div class="setup-choices">
+          {% for c, label in COURSES.items() %}
+            <label class="ing-tile setup-choice" data-start="{{ c }}">
+              <input type="radio" name="start" value="{{ c }}">
+              <span><b class="emoji">{{ KINDS[c].icon if c != 'main' else '🍽️' }}</b><span class="ing-name">{{ label }} freigeben</span></span>
+            </label>
+          {% endfor %}
+          <label class="ing-tile setup-choice">
+            <input type="radio" name="start" value="">
+            <span><b class="emoji">⛔</b><span class="ing-name">Noch geschlossen</span></span>
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Los geht's</button>
+          <button type="button" class="btn btn-block" data-setup-back>‹ Zurück</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 {% endif %}
 
 {% if event and is_today %}
@@ -157,5 +212,5 @@
       readOnly: {{ 'false' if is_today else 'true' }}
     };
   </script>
-  {% if event %}<script src="/static/js/kitchen.js?v=14"></script>{% endif %}
+  {% if event %}<script src="/static/js/kitchen.js?v=15"></script>{% endif %}
 {% endblock %}

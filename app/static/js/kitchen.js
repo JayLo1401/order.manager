@@ -50,11 +50,26 @@
       </button>`;
   }
 
+  // Schnellknoepfe direkt auf der Kachel: ein Tipp statt Dialog
+  function quickActions(o) {
+    if (cfg.readOnly) return "";
+    if (o.status === "new") {
+      return `<div class="tile-actions">
+        <button type="button" class="btn btn-warn" data-quick="in_progress">👨‍🍳 In Arbeit</button>
+        <button type="button" class="btn btn-ok" data-quick="done">✓ Fertig</button>
+      </div>`;
+    }
+    if (o.status === "in_progress") {
+      return `<div class="tile-actions"><button type="button" class="btn btn-ok" data-quick="done">✓ Fertig</button></div>`;
+    }
+    return "";
+  }
+
   function tileHtml(o, fresh) {
     if (o.is_skip) return skipTileHtml(o, fresh);
     const icons = o.ingredients.map((i) => i.icon).filter(Boolean).join("");
     return `
-      <button type="button" class="tile tile-${o.status}${fresh ? " fresh" : ""}" data-id="${o.id}">
+      <div role="button" tabindex="0" class="tile tile-${o.status}${fresh ? " fresh" : ""}" data-id="${o.id}">
         <div class="tile-top">
           <span class="tile-number">#${o.number}</span>
           <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
@@ -67,7 +82,8 @@
         <div class="tile-icons emoji">${esc(icons)}</div>
         ${o.note ? `<div class="tile-note">💬 ${esc(o.note)}</div>` : ""}
         ${o.status === "in_progress" ? '<span class="tile-status badge badge-warn">In Arbeit</span>' : ""}
-      </button>`;
+        ${quickActions(o)}
+      </div>`;
   }
 
   // Bei mehreren Gaengen je Gang eine eigene Gruppe (Vorspeise, Hauptspeise, Nachspeise)
@@ -333,6 +349,35 @@
     });
   }
 
+  // ---------------------------------------------------------------- Einrichtung (frischer Bestelltag)
+  const setupForm = $("#setup-form");
+  if (setupForm) {
+    const step = (n) => setupForm.querySelectorAll("[data-setup-step]").forEach((el) => {
+      el.hidden = el.dataset.setupStep !== String(n);
+    });
+    const checked = () => Array.from(setupForm.querySelectorAll('input[name="courses"]:checked')).map((b) => b.value);
+    const updateMainKind = () => { setupForm.querySelector("[data-main-kind]").hidden = !checked().includes("main"); };
+    setupForm.addEventListener("change", (ev) => {
+      if (ev.target.name === "courses") {
+        updateMainKind();
+        setupForm.querySelector("[data-setup-error]").hidden = true;
+      }
+    });
+    setupForm.querySelector("[data-setup-next]").addEventListener("click", () => {
+      const courses = checked();
+      if (!courses.length) { setupForm.querySelector("[data-setup-error]").hidden = false; return; }
+      // Nur die gewaehlten Gaenge zum Starten anbieten, vorausgewaehlt der erste
+      setupForm.querySelectorAll("[data-start]").forEach((tile) => {
+        const on = courses.includes(tile.dataset.start);
+        tile.hidden = !on;
+        tile.querySelector("input").checked = on && tile.dataset.start === courses[0];
+      });
+      step(2);
+    });
+    setupForm.querySelector("[data-setup-back]").addEventListener("click", () => step(1));
+    updateMainKind();
+  }
+
   // ---------------------------------------------------------------- Bestellung erfassen
   const entryModal = $("#entry-modal");
   const entrySelect = $("#entry-guest");
@@ -469,6 +514,11 @@
 
   // ---------------------------------------------------------------- Events
   document.addEventListener("click", (ev) => {
+    const quick = ev.target.closest("[data-quick]");
+    if (quick) {
+      setStatus(Number(quick.closest(".tile").dataset.id), quick.dataset.quick, quick);
+      return;
+    }
     const tile = ev.target.closest(".tile");
     if (tile) {
       const o = orders.find((x) => x.id === Number(tile.dataset.id));
@@ -479,6 +529,12 @@
     if (ev.target.closest("[data-close]") || ev.target === $("#modal")) closeModal();
   });
   document.addEventListener("keydown", (ev) => {
+    // Kachel per Tastatur oeffnen (sie ist ein div wegen der Knoepfe darin)
+    if ((ev.key === "Enter" || ev.key === " ") && ev.target.classList?.contains("tile")) {
+      ev.preventDefault();
+      ev.target.click();
+      return;
+    }
     if (ev.key !== "Escape") return;
     closeModal();
     if (stockModal) stockModal.hidden = true;

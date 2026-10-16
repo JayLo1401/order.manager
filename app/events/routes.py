@@ -46,11 +46,13 @@ def link_page(request: Request, db: Session = Depends(get_db), user: User = Depe
 
 
 @router.post("/create", dependencies=[Depends(verify_csrf)])
-def create(request: Request, db: Session = Depends(get_db), user: User = Depends(require_login)):
+def create(
+    request: Request, next: str = Form("/link"), db: Session = Depends(get_db), user: User = Depends(require_login)
+):
     get_or_create_today_event(db, user)
     db.commit()
     flash(request, "Bestell-Link für heute erstellt.")
-    return RedirectResponse("/link", status_code=303)
+    return RedirectResponse(safe_next(next), status_code=303)
 
 
 @router.post("/regenerate", dependencies=[Depends(verify_csrf)])

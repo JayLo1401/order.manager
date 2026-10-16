@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{% block title %}Bestell-Manager{% endblock %}</title>
+  <title>{% block title %}Order Manager{% endblock %}</title>
   <link rel="icon" type="image/png" href="/static/img/icon-192.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/img/icon-180.png">
@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Bestellungen">
-  <link rel="stylesheet" href="/static/css/app.css?v=16">
+  <link rel="stylesheet" href="/static/css/app.css?v=17">
   <script src="/static/js/app.js?v=2" defer></script>
   {% block head %}{% endblock %}
 </head>
@@ -23,7 +23,7 @@
     <div class="brand">
       <a class="brand-icon emoji" href="/" tabindex="-1" aria-hidden="true">🍕</a>
       <div class="brand-text">
-        <a class="brand-name" href="/">Bestell-Manager</a>
+        <a class="brand-name" href="/">Order Manager</a>
         <a class="brand-credit" href="https://jaycloud.at/ordermanager" target="_blank" rel="noopener">Powered by Jay</a>
       </div>
     </div>
@@ -54,7 +54,7 @@
     {% block content %}{% endblock %}
   </main>
   {% if request.session.get("user_id") %}
-    <footer class="site-footer">Bestell-Manager v{{ APP_VERSION }}</footer>
+    <footer class="site-footer">Order Manager v{{ APP_VERSION }}</footer>
   {% endif %}
   {% block scripts %}{% endblock %}
 </body>

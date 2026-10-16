@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, false
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, false, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -44,6 +44,8 @@ class Event(Base):
     # Bestelltag, damit am naechsten Tag automatisch wieder alles verfuegbar ist.
     # Beim Aendern immer eine neue Liste zuweisen (sonst erkennt SQLAlchemy es nicht).
     sold_out_ingredient_ids: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    # Gaenge/Start wurden fuer heute festgelegt (Einrichtungs-Dialog im Kuechenmonitor)
+    setup_done: Mapped[bool] = mapped_column(Boolean, default=False, server_default=true())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     orders: Mapped[list["Order"]] = relationship(back_populates="event", cascade="all, delete-orphan")
