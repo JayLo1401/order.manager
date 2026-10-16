@@ -266,7 +266,7 @@ body.is-fullscreen .site-header { display: none; }
 .tile {
   position: relative; text-align: left; font: inherit; color: var(--text);
   background: var(--surface); border: 2px solid var(--border); border-radius: 16px;
-  padding: .85rem .9rem; cursor: pointer; min-height: 150px; display: flex; flex-direction: column; gap: .3rem;
+  padding: .6rem .8rem .7rem; cursor: pointer; display: flex; flex-direction: column; gap: .25rem;
   box-shadow: var(--shadow); touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
 .tile:active { transform: scale(.98); }
@@ -275,16 +275,16 @@ body.is-fullscreen .site-header { display: none; }
 .tile-in_progress { background: var(--warn-soft); border-color: var(--warn-strong); }
 .tile-done { background: var(--ok-soft); border-color: var(--ok); opacity: .8; }
 .tile-cancelled { opacity: .45; text-decoration: line-through; }
-.tile-skip { min-height: 110px; border-style: dashed; }
+.tile-skip { border-style: dashed; }
 .tile-skip.tile-new { background: var(--surface-2); }
 .tile-skip-hint { margin-top: auto; color: var(--muted); font-size: .85rem; font-weight: 600; }
-.tile-top { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
-.tile-number { font-size: 1.9rem; font-weight: 800; line-height: 1; }
+.tile-top { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; color: var(--muted); }
+.tile-number { font-size: 1.15rem; font-weight: 800; color: var(--text); }
 .tile-age { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
-.tile-course { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.tile-guest { font-weight: 700; font-size: 1.1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tile-item { font-size: 1.05rem; }
-.tile-icons { font-size: 1.35rem; letter-spacing: .1rem; line-height: 1.3; }
+.tile-course { font-size: .85rem; font-weight: 600; }
+.tile-guest { font-weight: 800; font-size: 1.3rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-item { font-size: 1.15rem; font-weight: 600; }
+.tile-icons { font-size: 1.2rem; letter-spacing: .1rem; line-height: 1.2; }
 .tile-options, .modal-options {
   font-weight: 800; color: var(--warn); background: var(--warn-soft);
   border-radius: 6px; padding: .15rem .45rem; align-self: flex-start;
@@ -300,11 +300,9 @@ body.is-fullscreen .site-header { display: none; }
 }
 .extra-request .emoji { font-size: 1.4rem; }
 .extra-request-text { font-size: 1.05rem; }
-.tile-status { align-self: flex-start; }
 /* Schnellknoepfe: gross genug fuer nasse/mehlige Finger */
-.tile-actions { margin-top: auto; padding-top: .5rem; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .5rem; }
-.tile-actions .btn { min-height: 52px; font-size: 1.05rem; font-weight: 700; justify-content: center; }
-.tile:has(.tile-actions .btn:active) { transform: none; }
+.tile-action { margin-top: auto; min-height: 50px; font-size: 1.1rem; font-weight: 700; justify-content: center; width: 100%; }
+.tile:has(.tile-action:active) { transform: none; }
 /* Einrichtungs-Dialog */
 .setup-choices { display: grid; gap: .5rem; margin: .75rem 0; }
 .setup-choice > span { min-height: 60px; font-size: 1.1rem; font-weight: 600; }

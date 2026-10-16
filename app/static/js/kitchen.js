@@ -40,49 +40,45 @@
   function skipTileHtml(o, fresh) {
     return `
       <button type="button" class="tile tile-skip tile-${o.status}${fresh ? " fresh" : ""}" data-id="${o.id}">
-        <div class="tile-top">
-          <span class="tile-number">#${o.number}</span>
-          <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
-        </div>
+        ${tileTop(o)}
         <div class="tile-guest">${esc(o.guest || "Gast")}</div>
         <div class="tile-item"><span class="emoji">🚫</span> ${esc(o.item_name)}</div>
         ${isQuickDone(o) ? '<div class="tile-skip-hint">Antippen = erledigt</div>' : ""}
       </button>`;
   }
 
-  // Schnellknoepfe direkt auf der Kachel: ein Tipp statt Dialog
-  function quickActions(o) {
+  // Ein Schnellknopf an immer derselben Stelle: erst "In Arbeit", dann "Fertig"
+  function quickAction(o) {
     if (cfg.readOnly) return "";
     if (o.status === "new") {
-      return `<div class="tile-actions">
-        <button type="button" class="btn btn-warn" data-quick="in_progress">👨‍🍳 In Arbeit</button>
-        <button type="button" class="btn btn-ok" data-quick="done">✓ Fertig</button>
-      </div>`;
+      return '<button type="button" class="btn btn-warn tile-action" data-quick="in_progress">👨‍🍳 In Arbeit</button>';
     }
     if (o.status === "in_progress") {
-      return `<div class="tile-actions"><button type="button" class="btn btn-ok" data-quick="done">✓ Fertig</button></div>`;
+      return '<button type="button" class="btn btn-ok tile-action" data-quick="done">✓ Fertig</button>';
     }
     return "";
   }
+
+  // Kopfzeile: Nummer, Gang (falls mehrere) und Wartezeit kompakt in einer Zeile
+  const tileTop = (o) => `
+    <div class="tile-top">
+      <span><span class="tile-number">#${o.number}</span>${showCourse() ? ` <span class="tile-course">· ${esc(o.course_label)}</span>` : ""}</span>
+      <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
+    </div>`;
 
   function tileHtml(o, fresh) {
     if (o.is_skip) return skipTileHtml(o, fresh);
     const icons = o.ingredients.map((i) => i.icon).filter(Boolean).join("");
     return `
       <div role="button" tabindex="0" class="tile tile-${o.status}${fresh ? " fresh" : ""}" data-id="${o.id}">
-        <div class="tile-top">
-          <span class="tile-number">#${o.number}</span>
-          <span class="tile-age" data-created="${esc(o.created_at)}">${minutesSince(o.created_at)}</span>
-        </div>
-        ${showCourse() ? `<div class="tile-course">${esc(o.course_label)}</div>` : ""}
+        ${tileTop(o)}
         <div class="tile-guest">${esc(o.guest || "Gast")}${o.guest_extra_orders ? ` <span title="Nachschlag freigegeben">🎁${o.guest_extra_orders > 1 ? o.guest_extra_orders : ""}</span>` : ""}</div>
         <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}${o.vegetarian ? ' <span class="badge badge-veg">🌱</span>' : ""}</div>
         ${optionsText(o) ? `<div class="tile-options">${esc(optionsText(o))}</div>` : ""}
         ${changesText(o) ? `<div class="tile-options">${esc(changesText(o))}</div>` : ""}
         <div class="tile-icons emoji">${esc(icons)}</div>
         ${o.note ? `<div class="tile-note">💬 ${esc(o.note)}</div>` : ""}
-        ${o.status === "in_progress" ? '<span class="tile-status badge badge-warn">In Arbeit</span>' : ""}
-        ${quickActions(o)}
+        ${quickAction(o)}
       </div>`;
   }
 
