@@ -6,8 +6,13 @@ Alle nennenswerten Änderungen je Version. Format angelehnt an [Keep a Changelog
 
 ### Gäste
 
-- Fertige Pizza vor dem Bestellen kontrollieren und abändern: Nach „Weiter“ werden die Zutaten angezeigt, einzelne lassen sich weglassen oder dazunehmen („ohne Zwiebel, + Jalapeños“). Ohne Änderung genügt ein Tipp auf „Bestellung abschließen“.
-- Anmerkung bei Pizzen nur noch eingeklappt im Kontroll-Fenster.
+- Fertige Pizza vor dem Bestellen kontrollieren und abändern: Nach „Weiter“ werden die Zutaten angezeigt, einzelne lassen sich weglassen oder dazunehmen („ohne Zwiebel, + Jalapeños“). Danach folgt als eigener Schritt die Frage nach Optionen wie Calzone.
+- Anmerkung bei Pizzen nur noch eingeklappt im letzten Schritt.
+
+### Verwaltung
+
+- Bestell-Limit pro Gast getrennt für Vorspeise, Hauptspeise und Nachspeise einstellbar (z.B. 2 Vorspeisen, 1 Hauptspeise). Das bisherige Limit wird für alle Gänge übernommen.
+- Screenshots im Ordner `screenshots/`.
 
 ### Küchenmonitor
 

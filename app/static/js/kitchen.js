@@ -185,7 +185,7 @@
     });
 
     // Nachschlag: nur sinnvoll, wenn es ein Bestell-Limit gibt
-    const showExtra = !cfg.readOnly && eventInfo.order_limit > 0;
+    const showExtra = !cfg.readOnly && (eventInfo.order_limits || {})[o.course] > 0;
     $("#modal-extra").hidden = !showExtra;
     if (showExtra) {
       const extra = o.guest_extra_orders || 0;

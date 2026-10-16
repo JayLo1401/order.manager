@@ -78,7 +78,7 @@ def can_order_more(db: Session, guest: Guest, host_settings: HostSettings, cours
     """Das Limit gilt pro Gang. course=None (geschlossen) -> nie."""
     if course is None:
         return False
-    limit = host_settings.max_orders_per_guest
+    limit = host_settings.order_limit(course)
     return limit == 0 or active_order_count(db, guest, course) < limit + guest.extra_for(course)
 
 

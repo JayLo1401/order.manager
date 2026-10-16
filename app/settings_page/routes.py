@@ -6,6 +6,7 @@ from app.auth.dependencies import require_login, verify_csrf
 from app.catalog.defaults import ensure_host_settings
 from app.database import get_db
 from app.events.service import today_event
+from app.models.event import COURSES
 from app.models.settings import GUEST_IDENTITY_MODES
 from app.models.user import User
 from app.templating import flash, templates
@@ -18,7 +19,7 @@ def settings_page(request: Request, db: Session = Depends(get_db), user: User = 
     host_settings = ensure_host_settings(db, user.id)
     db.commit()
     return templates.TemplateResponse(request, "settings.html", {
-        "s": host_settings, "identity_modes": GUEST_IDENTITY_MODES, "user": user,
+        "s": host_settings, "identity_modes": GUEST_IDENTITY_MODES, "user": user, "courses": COURSES,
     })
 
 
@@ -28,7 +29,9 @@ def save_settings(
     event_title: str = Form(""),
     welcome_text: str = Form(""),
     guest_identity: str = Form("name"),
-    max_orders_per_guest: int = Form(1),
+    max_orders_starter: int = Form(1),
+    max_orders_main: int = Form(1),
+    max_orders_dessert: int = Form(1),
     max_custom_ingredients: int = Form(0),
     allow_presets: bool = Form(False),
     allow_custom: bool = Form(False),
@@ -41,7 +44,11 @@ def save_settings(
     s.event_title = event_title.strip()[:120] or "Pizzaabend"
     s.welcome_text = welcome_text.strip()
     s.guest_identity = guest_identity if guest_identity in GUEST_IDENTITY_MODES else "name"
-    s.max_orders_per_guest = max(0, max_orders_per_guest)
+    s.max_orders_by_course = {
+        "starter": max(0, max_orders_starter),
+        "main": max(0, max_orders_main),
+        "dessert": max(0, max_orders_dessert),
+    }
     s.max_custom_ingredients = max(0, max_custom_ingredients)
     s.allow_presets = allow_presets
     s.allow_custom = allow_custom

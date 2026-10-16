@@ -12,7 +12,7 @@ from tests.conftest import csrf_from, login
 
 @pytest.fixture()
 def setup(client, db_session, admin):
-    db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id)).max_orders_per_guest = 0
+    db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id)).max_orders_by_course = {"starter": 0, "main": 0, "dessert": 0}
     db_session.commit()
     login(client, "admin@test.at", "geheim123")
     client.post("/link/create", data={"csrf_token": csrf_from(client, "/link")})

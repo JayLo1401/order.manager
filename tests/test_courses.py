@@ -269,3 +269,38 @@ def test_guest_status_grouped_by_course(client, db_session, admin, setup):
     assert titles == sorted(titles)
     assert page.index("Kürbiscremesuppe") < page.index("Margherita")
     assert "Nachspeise</h2>" not in page  # leere Gaenge ohne Ueberschrift
+
+
+def test_order_limit_per_course(client, db_session, admin, setup):
+    event, guest = setup
+    # Einstellungen: 2 Vorspeisen, 1 Hauptspeise, Nachspeise unbegrenzt
+    client.post("/settings", data={
+        "event_title": "Pizzaabend", "guest_identity": "name", "max_custom_ingredients": "0",
+        "max_orders_starter": "2", "max_orders_main": "1", "max_orders_dessert": "0",
+        "allow_presets": "1", "allow_custom": "1", "csrf_token": csrf_from(client, "/settings"),
+    })
+    page = client.get("/settings").text
+    assert 'name="max_orders_starter" min="0" value="2"' in page
+    assert 'name="max_orders_dessert" min="0" value="0"' in page
+
+    soup = _product(db_session, admin, "Kürbiscremesuppe")
+    margherita = _product(db_session, admin, "Margherita")
+    pancake = _product(db_session, admin, "Eispalatschinke")
+    vanilla = _option(db_session, admin, "Vanilleeis")
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+
+    def order(**data):
+        guest.post(f"/o/{event.token}/order", data={"csrf_token": token, **data})
+        return [o for o in _orders(db_session) if o.course == event.current_course]
+
+    switch(client, "starter")
+    assert len(order(product_id=soup.id)) == 1
+    assert len(order(product_id=soup.id)) == 2
+    assert len(order(product_id=soup.id)) == 2  # dritte Vorspeise abgelehnt
+    switch(client, "main")
+    assert len(order(product_id=margherita.id)) == 1
+    assert len(order(product_id=margherita.id)) == 1
+    assert client.get("/kitchen/api/orders").json()["event"]["order_limits"] == {"starter": 2, "main": 1, "dessert": 0}
+    switch(client, "dessert")
+    for n in range(1, 4):
+        assert len(order(product_id=pancake.id, option_ids=[vanilla.id])) == n

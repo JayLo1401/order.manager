@@ -130,7 +130,7 @@ def orders_api(event_id: int | None = None, db: Session = Depends(get_db), user:
             "courses": event.courses,
             "current_course": event.current_course,
             # Bei unbegrenzten Bestellungen ist "Nachschlag" sinnlos
-            "order_limit": host_settings.max_orders_per_guest,
+            "order_limits": {c: host_settings.order_limit(c) for c in COURSES},
             "sold_out_count": len(event.sold_out_ids),
         },
         "orders": [order_to_dict(o) for o in orders],

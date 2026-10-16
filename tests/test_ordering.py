@@ -118,7 +118,7 @@ def test_kitchen_grants_extra_order(client, db_session, admin):
     assert guest.get(f"/o/{event.token}/api/status").json()["can_order_more"] is False
 
     order = client.get("/kitchen/api/orders").json()["orders"][0]
-    assert client.get("/kitchen/api/orders").json()["event"]["order_limit"] == 1
+    assert client.get("/kitchen/api/orders").json()["event"]["order_limits"]["main"] == 1
     headers = {"X-CSRF-Token": csrf_from(client, "/kitchen")}
     response = client.post(f"/kitchen/api/guests/{order['guest_id']}/extra", json={"delta": 1}, headers=headers)
     assert response.json()["extra_orders"] == 1
@@ -192,7 +192,7 @@ def test_extra_order_only_for_own_guests(client, db_session, admin):
 def test_custom_pizza_respects_limits_and_inactive(client, db_session, admin):
     host_settings = db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id))
     host_settings.max_custom_ingredients = 2
-    host_settings.max_orders_per_guest = 0
+    host_settings.max_orders_by_course = {"starter": 0, "main": 0, "dessert": 0}
     db_session.commit()
     event = _create_link(client, db_session, admin)
     guest = _guest(client)
@@ -214,7 +214,7 @@ def test_custom_pizza_respects_limits_and_inactive(client, db_session, admin):
 
 def test_preset_pizza_can_be_changed_before_ordering(client, db_session, admin):
     host_settings = db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id))
-    host_settings.max_orders_per_guest = 0
+    host_settings.max_orders_by_course = {"starter": 0, "main": 0, "dessert": 0}
     db_session.commit()
     event = _create_link(client, db_session, admin)
     guest = _guest(client)

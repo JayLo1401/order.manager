@@ -113,6 +113,40 @@
       updateReview();
     };
 
+    // Fertige Pizza: erst Zutaten, dann (falls vorhanden) Optionen wie Calzone.
+    // Die Anmerkung steht immer im letzten Schritt.
+    const ingStep = sheet.querySelector('[data-step="ingredients"]');
+    const optStep = sheet.querySelector('[data-step="options"]');
+    const nextBtn = sheet.querySelector("[data-review-next]");
+    const cancelBtn = sheet.querySelector("[data-options-cancel]");
+    const note = sheet.querySelector("[data-note]");
+    let hasOptionsStep = false;
+    let step = "options";
+
+    const showStep = (name) => {
+      step = name;
+      if (review) {
+        const first = name === "ingredients";
+        ingStep.hidden = !first;
+        if (optStep) optStep.hidden = first || !hasOptionsStep;
+        if (note) note.hidden = first && hasOptionsStep;
+        nextBtn.hidden = !(first && hasOptionsStep);
+        confirmBtn.hidden = !nextBtn.hidden;
+        cancelBtn.textContent = first ? "Zurück" : "‹ Zurück zu den Zutaten";
+      }
+      sheet.querySelector(".modal").scrollTop = 0;
+      (nextBtn && !nextBtn.hidden ? nextBtn : confirmBtn).focus({ preventScroll: true });
+    };
+
+    // Ohne Zutat keine Pizza (sofern sie laut Karte welche hat)
+    const ingredientsOk = () => {
+      if (!review || !baseIds.length || updateReview()) return true;
+      if (step !== "ingredients") showStep("ingredients");
+      summary.classList.add("is-error");
+      summary.textContent = "Bitte lass mindestens eine Zutat auf der Pizza.";
+      return false;
+    };
+
     orderForm.addEventListener("submit", (ev) => {
       if (confirmed) return;
       const allowed = allowedIds();
@@ -135,10 +169,12 @@
         && sheet.querySelector('[data-option-id]:not([hidden]) input[data-group="shape"]'));
       if (optionalHint) optionalHint.hidden = choiceRequired || !visible;
       if (requiredHint) requiredHint.hidden = true;
+      hasOptionsStep = visible > 0;
       sheet.hidden = false;
-      sheet.querySelector(".modal").scrollTop = 0;
-      confirmBtn.focus({ preventScroll: true });
+      showStep(review ? "ingredients" : "options");
     });
+
+    if (nextBtn) nextBtn.addEventListener("click", () => { if (ingredientsOk()) showStep("options"); });
 
     sheet.addEventListener("change", (ev) => {
       const box = ev.target;
@@ -158,17 +194,16 @@
         requiredHint.scrollIntoView({ block: "nearest" });
         return;
       }
-      if (review && baseIds.length && !updateReview()) {
-        summary.classList.add("is-error");
-        summary.textContent = "Bitte lass mindestens eine Zutat auf der Pizza.";
-        return;
-      }
+      if (!ingredientsOk()) return;
       confirmed = true;
       confirmBtn.disabled = true;
       confirmBtn.textContent = "Wird gesendet …";
       orderForm.requestSubmit();
     });
-    sheet.querySelector("[data-options-cancel]").addEventListener("click", () => { sheet.hidden = true; });
+    cancelBtn.addEventListener("click", () => {
+      if (review && step === "options") showStep("ingredients");
+      else sheet.hidden = true;
+    });
     sheet.addEventListener("click", (ev) => { if (ev.target === sheet) sheet.hidden = true; });
   }
 

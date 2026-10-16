@@ -1,5 +1,6 @@
 {# Wird vor dem Absenden eingeblendet, wenn es fuer das gewaehlte Gericht Optionen gibt -
    bei fertigen Pizzen immer, damit der Gast die Zutaten kontrollieren und abaendern kann.
+   Fertige Pizza: Schritt 1 Zutaten, Schritt 2 Optionen (nur wenn es welche gibt).
    Muss innerhalb des Bestell-Formulars stehen, damit option_ids mitgeschickt werden. #}
 {% set review = ingredients is defined and ingredients %}
 {% if options or review %}
@@ -10,58 +11,67 @@
       <h2 id="options-title" data-review-title></h2>
       {# Erst per JS aktiviert - ohne JS wird die Pizza unveraendert bestellt #}
       <input type="hidden" name="customize" value="1" disabled data-customize>
-      <section data-ing-base-section>
-        <h3 class="section-title">Auf deiner Pizza <span class="small">(antippen zum Weglassen)</span></h3>
-        <div class="ing-grid" data-ing-base></div>
-      </section>
-      <section data-ing-extra-section>
-        <h3 class="section-title">Noch etwas dazu? <span class="small">(antippen zum Hinzufügen)</span></h3>
-        <div class="ing-grid" data-ing-extra>
-          {% for i in ingredients %}
-            <label class="ing-tile" data-ingredient-id="{{ i.id }}" data-vegetarian="{{ 1 if i.vegetarian else 0 }}">
-              <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" data-name="{{ i.name }}">
-              <span><b class="emoji">{{ i.icon }}</b><span class="ing-name">{{ i.name }}</span></span>
-            </label>
-          {% endfor %}
-        </div>
-      </section>
-    {% else %}
-      <h2 id="options-title">Wie hättest du sie gern?</h2>
-    {% endif %}
-    {% for group, label, hint in [('shape', choice_label, 'nur eine wählbar'), ('extra', 'Extras', 'beliebig kombinierbar')] %}
-      {% set items = options|selectattr('option_group', 'equalto', group)|list %}
-      {% if items %}
-        <section data-option-section>
-          <h3 class="section-title">{{ label }} <span class="small">({{ hint }})</span></h3>
-          <div class="option-choices">
-            {% for o in items %}
-              <label class="ing-tile option-choice" data-option-id="{{ o.id }}">
-                <input type="checkbox" name="option_ids" value="{{ o.id }}" data-group="{{ o.option_group }}">
-                <span>
-                  <b class="emoji">{{ o.icon }}</b>
-                  <span class="option-choice-text">
-                    {{ o.name }}
-                    {% if o.description %}<small>{{ o.description }}</small>{% endif %}
-                  </span>
-                </span>
+      <div data-step="ingredients">
+        <section data-ing-base-section>
+          <h3 class="section-title">Auf deiner Pizza <span class="small">(antippen zum Weglassen)</span></h3>
+          <div class="ing-grid" data-ing-base></div>
+        </section>
+        <section data-ing-extra-section>
+          <h3 class="section-title">Noch etwas dazu? <span class="small">(antippen zum Hinzufügen)</span></h3>
+          <div class="ing-grid" data-ing-extra>
+            {% for i in ingredients %}
+              <label class="ing-tile" data-ingredient-id="{{ i.id }}" data-vegetarian="{{ 1 if i.vegetarian else 0 }}">
+                <input type="checkbox" name="ingredient_ids" value="{{ i.id }}" data-name="{{ i.name }}">
+                <span><b class="emoji">{{ i.icon }}</b><span class="ing-name">{{ i.name }}</span></span>
               </label>
             {% endfor %}
           </div>
         </section>
-      {% endif %}
-    {% endfor %}
+      </div>
+    {% else %}
+      <h2 id="options-title">Wie hättest du sie gern?</h2>
+    {% endif %}
     {% if options %}
-      <p class="muted small" style="margin-top:.75rem" data-options-optional>Ohne Auswahl bekommst du sie ganz klassisch.</p>
-      <p class="flash flash-error" style="margin-top:.75rem" data-options-required hidden>Bitte wähle bei „{{ choice_label }}“ eine Möglichkeit aus.</p>
+      <div data-step="options">
+        {% if review %}<p class="step-question">Wie hättest du sie gern?</p>{% endif %}
+        {% for group, label, hint in [('shape', choice_label, 'nur eine wählbar'), ('extra', 'Extras', 'beliebig kombinierbar')] %}
+          {% set items = options|selectattr('option_group', 'equalto', group)|list %}
+          {% if items %}
+            <section data-option-section>
+              <h3 class="section-title">{{ label }} <span class="small">({{ hint }})</span></h3>
+              <div class="option-choices">
+                {% for o in items %}
+                  <label class="ing-tile option-choice" data-option-id="{{ o.id }}">
+                    <input type="checkbox" name="option_ids" value="{{ o.id }}" data-group="{{ o.option_group }}">
+                    <span>
+                      <b class="emoji">{{ o.icon }}</b>
+                      <span class="option-choice-text">
+                        {{ o.name }}
+                        {% if o.description %}<small>{{ o.description }}</small>{% endif %}
+                      </span>
+                    </span>
+                  </label>
+                {% endfor %}
+              </div>
+            </section>
+          {% endif %}
+        {% endfor %}
+        <p class="muted small" style="margin-top:.75rem" data-options-optional>Ohne Auswahl bekommst du sie ganz klassisch.</p>
+        <p class="flash flash-error" style="margin-top:.75rem" data-options-required hidden>Bitte wähle bei „{{ choice_label }}“ eine Möglichkeit aus.</p>
+      </div>
     {% endif %}
     {% if review and ctx.settings.allow_note %}
-      <details class="note-details">
+      {# Steht immer im letzten Schritt #}
+      <details class="note-details" data-note>
         <summary>💬 Anmerkung für die Küche</summary>
         <input type="text" name="note" maxlength="300" placeholder="z.B. gut durch, extra knusprig …" aria-label="Anmerkung">
       </details>
     {% endif %}
     <div class="modal-actions{{ ' modal-actions-sticky' if review }}">
-      {% if review %}<div class="review-summary" data-review-summary></div>{% endif %}
+      {% if review %}
+        <div class="review-summary" data-review-summary></div>
+        <button type="button" class="btn btn-primary btn-lg btn-block" data-review-next hidden>Weiter ›</button>
+      {% endif %}
       <button type="button" class="btn btn-primary btn-lg btn-block" data-options-confirm>Bestellung abschließen</button>
       <button type="button" class="btn btn-block" data-options-cancel>Zurück</button>
     </div>
