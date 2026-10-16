@@ -91,7 +91,7 @@ def test_course_flow(client, db_session, admin, setup):
     # Hauptspeise: Limit gilt pro Gang -> Pizza trotz Suppe bestellbar
     switch(client, "main")
     status = guest.get(f"/o/{event.token}/status").text
-    assert "Jetzt Pizza bestellen" in status
+    assert "Pizza aussuchen ›" in status
     assert guest.get(f"/o/{event.token}/api/status").json()["current_course"] == "main"
     orders = order(product_id=margherita.id)
     assert orders[-1].course == "main"
@@ -190,7 +190,7 @@ def test_extra_order_is_per_course(client, db_session, admin, setup):
     response = client.post(f"/kitchen/api/guests/{order['guest_id']}/extra", json={"delta": 1, "course": "starter"},
                            headers=headers)
     assert response.json() == {"guest_id": order["guest_id"], "course": "starter", "extra_orders": 1}
-    assert "Es ist noch Vorspeise übrig" in guest.get(f"/o/{event.token}/status").text
+    assert "Die Küche hat dir noch eine Vorspeise freigegeben" in guest.get(f"/o/{event.token}/status").text
 
     # Nachschlag fuer die Vorspeise gilt nicht fuer die Hauptspeise
     switch(client, "main")
@@ -241,7 +241,7 @@ def test_guest_skips_starter(client, db_session, admin, setup):
     assert [(o.item_name, o.course, o.is_skip) for o in orders] == [("Keine Vorspeise", "starter", True)]
     # Zaehlt als Bestellung fuer den Gang -> keine erneute Aufforderung
     assert guest.get(f"/o/{event.token}/api/status").json()["can_order_more"] is False
-    assert "die Küche weiß Bescheid" in guest.get(f"/o/{event.token}/status").text
+    assert "Alles klar – keine Vorspeise" in guest.get(f"/o/{event.token}/status").text
 
     kitchen_order = client.get("/kitchen/api/orders").json()["orders"][0]
     assert kitchen_order["is_skip"] is True
@@ -251,24 +251,80 @@ def test_guest_skips_starter(client, db_session, admin, setup):
 
     # Danach normal mit der Hauptspeise weiter
     switch(client, "main")
-    assert "Jetzt Pizza bestellen" in guest.get(f"/o/{event.token}/status").text
+    assert "Pizza aussuchen ›" in guest.get(f"/o/{event.token}/status").text
 
 
-def test_guest_status_grouped_by_course(client, db_session, admin, setup):
+def test_guest_status_separates_finished_orders(client, db_session, admin, setup):
     event, guest = setup
     token = csrf_from(guest, f"/o/{event.token}/menu")
-    # Erst Hauptspeise, dann Vorspeise bestellen - angezeigt wird trotzdem in Gang-Reihenfolge
-    switch(client, "main")
-    guest.post(f"/o/{event.token}/order", data={"product_id": _product(db_session, admin, "Margherita").id,
-                                                "csrf_token": token})
+    headers = {"X-CSRF-Token": csrf_from(client, "/kitchen")}
     switch(client, "starter")
     guest.post(f"/o/{event.token}/order", data={"product_id": _product(db_session, admin, "Kürbiscremesuppe").id,
                                                 "csrf_token": token})
+    soup = _orders(db_session)[0]
+    client.post(f"/kitchen/api/orders/{soup.id}/status", json={"status": "done"}, headers=headers)
+    switch(client, "main")
+    guest.post(f"/o/{event.token}/order", data={"product_id": _product(db_session, admin, "Margherita").id,
+                                                "csrf_token": token})
+
+    # Oben der Stand des Gangs und die laufende Pizza, unten die fertige Suppe
     page = guest.get(f"/o/{event.token}/status").text
-    titles = [page.index('class="order-group-title"><span class="emoji">🥣'), page.index("</span> Hauptspeise</h2>")]
-    assert titles == sorted(titles)
-    assert page.index("Kürbiscremesuppe") < page.index("Margherita")
-    assert "Nachspeise</h2>" not in page  # leere Gaenge ohne Ueberschrift
+    assert "Deine Pizza ist bestellt" in page and "Jeder Gast darf eine Pizza bestellen" in page
+    assert page.index("Aktuell") < page.index("Margherita") < page.index("Erledigt") < page.rindex("Kürbiscremesuppe")
+    assert "Kürbiscremesuppe ist fertig!" in page  # gerade eben fertig geworden
+
+    # Bestellungen geschlossen -> Pause
+    switch(client, "")
+    assert "Gerade ist Pause" in guest.get(f"/o/{event.token}/status").text
+
+
+def test_guest_requests_extra_once_until_kitchen_decides(client, db_session, admin, setup):
+    event, guest = setup
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+    headers = {"X-CSRF-Token": csrf_from(client, "/kitchen")}
+    margherita = _product(db_session, admin, "Margherita")
+    url = f"/o/{event.token}"
+
+    def kitchen_requests():
+        return client.get("/kitchen/api/orders").json()["event"]["extra_requests"]
+
+    # Vor Erreichen des Limits gibt es nichts anzufragen
+    switch(client, "main")
+    assert "Nachschlag anfragen" not in guest.get(f"{url}/status").text
+    guest.post(f"{url}/extra-request", data={"csrf_token": token})
+    assert kitchen_requests() == []
+
+    guest.post(f"{url}/order", data={"product_id": margherita.id, "csrf_token": token})
+    # Erst wenn die Pizza fertig ist
+    assert "Nachschlag anfragen" not in guest.get(f"{url}/status").text
+    first = _orders(db_session)[0]
+    client.post(f"/kitchen/api/orders/{first.id}/status", json={"status": "done"}, headers=headers)
+    assert "Nachschlag anfragen" in guest.get(f"{url}/status").text
+    guest.post(f"{url}/extra-request", data={"csrf_token": token})
+    guest.post(f"{url}/extra-request", data={"csrf_token": token})  # zweites Mal: keine weitere Anfrage
+    requests = kitchen_requests()
+    assert [(r["guest"], r["course"]) for r in requests] == [("Gast", "main")]
+    page = guest.get(f"{url}/status").text
+    assert "Nachschlag angefragt" in page and "Nachschlag anfragen" not in page
+    assert guest.get(f"{url}/api/status").json()["extra_request"] == "pending"
+
+    # Kueche lehnt ab -> Gast sieht es und darf erneut fragen
+    guest_id = requests[0]["guest_id"]
+    assert client.post(f"/kitchen/api/guests/{guest_id}/extra-request/decline", json={"course": "main"},
+                       headers=headers).status_code == 200
+    assert kitchen_requests() == []
+    page = guest.get(f"{url}/status").text
+    assert "keinen Nachschlag" in page and "Nochmal nach Nachschlag fragen" in page
+    assert client.post(f"/kitchen/api/guests/{guest_id}/extra-request/decline", json={"course": "main"},
+                       headers=headers).status_code == 409
+
+    # Erneut gefragt, Kueche erlaubt -> Anfrage erledigt, Gast darf noch eine bestellen
+    guest.post(f"{url}/extra-request", data={"csrf_token": token})
+    client.post(f"/kitchen/api/guests/{guest_id}/extra", json={"delta": 1, "course": "main"}, headers=headers)
+    assert kitchen_requests() == []
+    assert "Die Küche hat dir noch eine Pizza freigegeben" in guest.get(f"{url}/status").text
+    guest.post(f"{url}/order", data={"product_id": margherita.id, "csrf_token": token})
+    assert len(_orders(db_session)) == 2
 
 
 def test_order_limit_per_course(client, db_session, admin, setup):

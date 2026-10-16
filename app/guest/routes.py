@@ -1,5 +1,7 @@
 """Gaeste-Bereich: erreichbar ohne Login ueber /o/<token> (QR-Code / Link)."""
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Form, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import delete, select
@@ -17,15 +19,17 @@ from app.orders.service import (
     OrderError,
     available_today,
     can_order_more,
+    can_request_extra,
     change_status,
     find_guest,
     options_for,
     order_to_dict,
     place_order,
+    request_extra,
 )
 from app.push.service import get_vapid_keys
 from app.templating import flash, templates
-from app.timeutil import today_local
+from app.timeutil import now_utc, today_local
 
 router = APIRouter(prefix="/o/{token}")
 
@@ -241,18 +245,49 @@ def status_page(
     request: Request, ok: int = 0, ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)
 ):
     orders = _my_orders(db, ctx.guest)
-    # Nach Gang gruppiert (Vorspeise, Hauptspeise, Nachspeise), je Gang neueste zuerst
-    groups = [(c, [o for o in orders if o.course == c]) for c in COURSES]
+    course = ctx.course
+    current = [o for o in orders if o.course == course and o.status != "cancelled"] if course else []
+    # Oben nur, was gerade passiert; Fertiges, Storniertes und "Keine Vorspeise" unten
+    active = [o for o in orders if o.status in ("new", "in_progress") and not o.is_skip]
+    history = [o for o in orders if o not in active]
+    recent_limit = now_utc() - timedelta(minutes=15)
+    just_done = [o for o in active + history if o.status == "done" and not o.is_skip
+                 and o.done_at and _aware(o.done_at) >= recent_limit]
+    limit = ctx.settings.order_limit(course) if course else 0
     return _render(
         request, "status.html", ctx,
         orders=orders,
-        groups=[(c, items) for c, items in groups if items],
-        # Hat der Gast im gerade offenen Gang schon bestellt?
-        has_current=any(o.course == ctx.course and o.status != "cancelled" for o in orders),
+        active=active,
+        history=history,
+        just_done=just_done,
+        current_count=len(current),
+        only_skipped=bool(current) and all(o.is_skip for o in current),
+        # Wie viele darf der Gast in diesem Gang noch? None = unbegrenzt
+        limit=limit,
+        remaining=(limit + ctx.guest.extra_for(course) - len(current)) if course and limit else None,
+        extra_request=ctx.guest.extra_request(course),
+        can_request_extra=not ctx.kitchen and can_request_extra(db, ctx.guest, ctx.settings, course),
         just_ordered=bool(ok),
         can_order_more=ctx.can_order_more(db),
         vapid_public_key=get_vapid_keys(db).vapid_public_key,
     )
+
+
+def _aware(value: datetime) -> datetime:
+    # SQLite liefert Zeitstempel ohne Zeitzone (gespeichert in UTC)
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+@router.post("/extra-request", dependencies=[Depends(verify_csrf)])
+def extra_request(request: Request, ctx: GuestContext = Depends(require_guest), db: Session = Depends(get_db)):
+    """Gast bittet um Nachschlag - die Kueche erlaubt oder lehnt ab."""
+    try:
+        request_extra(db, ctx.guest, ctx.event, ctx.settings)
+    except OrderError as exc:
+        flash(request, str(exc), "error")
+    else:
+        db.commit()
+    return RedirectResponse(f"{ctx.base}/status", status_code=303)
 
 
 @router.get("/api/status")
@@ -261,6 +296,7 @@ def status_api(ctx: GuestContext = Depends(require_guest), db: Session = Depends
         "ordering_open": ctx.event.ordering_open,
         "current_course": ctx.course,
         "can_order_more": ctx.can_order_more(db),
+        "extra_request": ctx.guest.extra_request(ctx.course) or "",
         "orders": [order_to_dict(o) for o in _my_orders(db, ctx.guest)],
     }
 

@@ -8,6 +8,7 @@
   let orders = [];
   let eventInfo = {};
   let knownIds = null; // null = erster Ladevorgang, dann kein Ton
+  let knownRequests = null;
   let showDone = false;
   let soundOn = false;
   let openOrderId = null;
@@ -97,8 +98,13 @@
     if (knownIds !== null) {
       orders.forEach((o) => { if (!knownIds.has(o.id)) fresh.add(o.id); });
     }
-    if (fresh.size && soundOn) beep();
+    const requests = eventInfo.extra_requests || [];
+    const requestKeys = new Set(requests.map((r) => `${r.guest_id}-${r.course}`));
+    const newRequest = knownRequests !== null && [...requestKeys].some((k) => !knownRequests.has(k));
+    if ((fresh.size || newRequest) && soundOn) beep();
     knownIds = new Set(orders.map((o) => o.id));
+    knownRequests = requestKeys;
+    renderRequests(requests);
 
     $("#tiles-open").innerHTML = groupedTiles(open, fresh);
     $("#empty-open").hidden = open.length > 0;
@@ -112,6 +118,43 @@
       const o = orders.find((x) => x.id === openOrderId);
       if (o) fillModal(o); else closeModal();
     }
+  }
+
+  // Gaeste, die um Nachschlag bitten: erlauben oder ablehnen
+  function renderRequests(requests) {
+    const box = $("#extra-requests");
+    box.hidden = !requests.length;
+    box.innerHTML = requests.map((r, idx) => `
+      <div class="extra-request">
+        <span class="emoji">🙋</span>
+        <span class="extra-request-text"><strong>${esc(r.guest)}</strong> möchte Nachschlag
+          ${showCourse() ? `<span class="muted">(${esc(r.course_icon)} ${esc(r.course_label)})</span>` : ""}</span>
+        ${cfg.readOnly ? "" : `
+          <button type="button" class="btn btn-sm btn-ok" data-request="${idx}" data-grant="1">🎁 Erlauben</button>
+          <button type="button" class="btn btn-sm" data-request="${idx}" data-grant="0">Ablehnen</button>`}
+      </div>`).join("");
+    box.querySelectorAll("[data-request]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const r = requests[Number(btn.dataset.request)];
+        if (btn.dataset.grant === "1") setExtra(r.guest_id, r.course, 1, btn);
+        else declineRequest(r, btn);
+      });
+    });
+  }
+
+  async function declineRequest(r, btn) {
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/kitchen/api/guests/${r.guest_id}/extra-request/decline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": cfg.csrf },
+        body: JSON.stringify({ course: r.course }),
+      });
+      if (!res.ok) alert("Aktion fehlgeschlagen.");
+    } catch (e) {
+      alert("Keine Verbindung zum Server.");
+    }
+    load();
   }
 
   async function load() {

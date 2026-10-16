@@ -1,13 +1,19 @@
 {% extends "guest/guest_base.html" %}
 {% set step_index = {'new': 0, 'in_progress': 1, 'done': 2} %}
+{% macro changes(o) -%}
+  {%- set added = (o.ingredients or [])|selectattr('added')|list -%}
+  {%- for i in o.removed_ingredients or [] %}ohne <span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ' · ' if not loop.last or added }}{% endfor -%}
+  {%- for i in added %}+ <span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ' · ' if not loop.last }}{% endfor -%}
+{%- endmacro %}
 {% block content %}
 {% set event = ctx.event %}
 {% set course = ctx.course %}
 {% set multi = event.courses|length > 1 %}
 {% if course %}
   {% set noun = event.course_noun(course) %}
-  {% set extra = ctx.guest.extra_for(course) %}
+  {% set plural = event.course_plural(course) %}
 {% endif %}
+
 {% if just_ordered %}
   <div class="success">
     <div class="big emoji">✅</div>
@@ -15,97 +21,137 @@
     <p style="margin:0">Hier siehst du jederzeit den aktuellen Stand deiner Bestellung.</p>
   </div>
 {% endif %}
+{% for o in just_done %}
+  <div class="ready-hint">
+    <span class="emoji">🎉</span>
+    <span><strong>{{ o.item_name }} ist fertig!</strong> Guten Appetit.</span>
+  </div>
+{% endfor %}
 
 <p class="guest-who">{{ ctx.guest.label }}</p>
 
-{% if can_order_more and orders and not has_current %}
-  <div class="extra-hint">
-    <div class="big emoji">{{ event.course_icon(course) }}</div>
-    <h2 style="margin:.3rem 0">{{ event.course_label(course) }}</h2>
-    <p>Du kannst jetzt deine {{ noun }} bestellen.</p>
-    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt {{ noun }} bestellen</a>
-  </div>
-{% elif can_order_more and has_current and extra %}
-  <div class="extra-hint">
-    <div class="big emoji">🎁</div>
-    <h2 style="margin:.3rem 0">Nachschlag!</h2>
-    <p>Es ist noch {{ noun }} übrig – du darfst noch eine bestellen.</p>
-    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt noch eine {{ noun }} bestellen</a>
-  </div>
-{% endif %}
-
-<div id="orders" data-status-url="{{ ctx.base }}/api/status" data-can-order="{{ 1 if can_order_more else 0 }}" data-course="{{ course or '' }}">
-{% for course, items in groups %}
-{% if multi %}<h2 class="order-group-title"><span class="emoji">{{ event.course_icon(course) }}</span> {{ event.course_label(course) }}</h2>{% endif %}
-{% for o in items %}
-  {% set o_noun = event.course_noun(o.course) %}
-  <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}"{% if o.is_skip %} data-skip{% endif %}>
-    <div class="order-no">Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
-    <div class="order-item"><span class="emoji">{{ o.item_icon }}</span> {{ o.item_name }}</div>
-    {% if o.options %}<div class="order-options">{% for x in o.options %}<span class="emoji">{{ x.icon }}</span> {{ x.name }}{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}
-    {% set added = (o.ingredients or [])|selectattr('added')|list %}
-    {% if o.removed_ingredients or added %}
-      <div class="order-changes">
-        {%- for i in o.removed_ingredients or [] %}ohne <span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ' · ' if not loop.last or added }}{% endfor -%}
-        {%- for i in added %}+ <span class="emoji">{{ i.icon }}</span> {{ i.name }}{{ ' · ' if not loop.last }}{% endfor -%}
-      </div>
-    {% endif %}
-    {% if o.vegetarian %}<div><span class="badge badge-veg">🌱 Vegetarisch</span></div>{% endif %}
-    {% if o.ingredients %}
-      <div class="order-icons emoji">{% for i in o.ingredients %}{{ i.icon }}{% endfor %}</div>
-      <div class="muted small">{% for i in o.ingredients %}{{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
-    {% endif %}
-    {% if o.note %}<div class="muted small">💬 {{ o.note }}</div>{% endif %}
-
-    {% if o.status == 'cancelled' %}
-      <div class="big-status">Storniert</div>
-    {% elif o.is_skip %}
-      <div class="big-status">Alles klar – die Küche weiß Bescheid.</div>
+{# ------------------------------------------------ Was geht gerade? #}
+<div class="now-card">
+  {% if not course %}
+    <div class="now-icon emoji">⏸️</div>
+    <h2>Gerade ist Pause</h2>
+    <p>Im Moment kann nichts bestellt werden. Sobald es weitergeht, kannst du hier bestellen – die Seite aktualisiert sich von selbst.</p>
+  {% elif can_order_more and not current_count %}
+    <div class="now-icon emoji">{{ event.course_icon(course) }}</div>
+    <h2>{% if multi %}{{ event.course_label(course) }}: j{% else %}J{% endif %}etzt bestellen!</h2>
+    <p>
+      {% if not limit %}Such dir aus, worauf du Lust hast.
+      {% elif limit == 1 %}Such dir eine {{ noun }} aus.
+      {% else %}Du kannst bis zu {{ limit }} {{ plural }} bestellen.{% endif %}
+    </p>
+    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">{{ noun }} aussuchen ›</a>
+  {% elif can_order_more and limit and current_count >= limit %}
+    <div class="now-icon emoji">🎁</div>
+    <h2>Nachschlag!</h2>
+    <p>Die Küche hat dir noch eine {{ noun }} freigegeben.</p>
+    <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Noch eine {{ noun }} aussuchen ›</a>
+  {% elif can_order_more %}
+    <div class="now-icon emoji">👍</div>
+    <h2>{{ 'Alles klar – keine ' ~ event.course_label(course) if only_skipped else 'Deine ' ~ noun ~ ' ist bestellt' }}</h2>
+    <p>
+      {% if remaining is none %}Du kannst jederzeit noch mehr bestellen.
+      {% elif remaining == 1 %}Du kannst noch eine weitere {{ noun }} bestellen.
+      {% else %}Du kannst noch {{ remaining }} weitere {{ plural }} bestellen.{% endif %}
+    </p>
+    <a class="btn btn-block" href="{{ ctx.base }}/menu">+ Noch eine {{ noun }} bestellen</a>
+  {% else %}
+    <div class="now-icon emoji">👍</div>
+    {% if only_skipped %}
+      <h2>Alles klar – keine {{ event.course_label(course) }}</h2>
+      <p>Die Küche weiß Bescheid. Sobald der nächste Gang startet, kannst du hier wieder bestellen.</p>
     {% else %}
+    <h2>Deine {{ noun }} ist bestellt</h2>
+    <p>Jeder Gast darf {{ 'eine ' ~ noun if limit == 1 else limit ~ ' ' ~ plural }} bestellen{% if ctx.guest.extra_for(course) %} – plus Nachschlag{% endif %}.</p>
+    {% if extra_request == 'pending' %}
+      <div class="request-pending">⏳ <strong>Nachschlag angefragt</strong> – die Küche gibt dir gleich Bescheid.</div>
+    {% elif can_request_extra %}
+      {% if extra_request == 'declined' %}
+        <p class="request-declined">😔 Diesmal gab es leider keinen Nachschlag.</p>
+      {% endif %}
+      <form method="post" action="{{ ctx.base }}/extra-request">
+        {{ m.csrf() }}
+        <button class="btn btn-block" type="submit" data-once>🙋 {{ 'Nochmal nach Nachschlag fragen' if extra_request == 'declined' else 'Nachschlag anfragen' }}</button>
+      </form>
+      {% if extra_request != 'declined' %}<p class="muted small" style="margin:.5rem 0 0">Noch Hunger? Frag die Küche, ob noch etwas übrig ist.</p>{% endif %}
+    {% endif %}
+    {% endif %}
+  {% endif %}
+</div>
+
+<div id="orders" data-status-url="{{ ctx.base }}/api/status" data-can-order="{{ 1 if can_order_more else 0 }}"
+     data-course="{{ course or '' }}" data-extra-request="{{ extra_request or '' }}">
+
+{# ------------------------------------------------ Aktuell #}
+{% if active %}
+  <h2 class="order-group-title">Aktuell</h2>
+  {% for o in active %}
+    <div class="card order-card status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}">
+      <div class="order-no">{% if multi %}{{ event.course_label(o.course) }} · {% endif %}Bestellung #{{ o.number }} · {{ o.created_at|localtime }} Uhr</div>
+      <div class="order-item"><span class="emoji">{{ o.item_icon }}</span> {{ o.item_name }}</div>
+      {% if o.options %}<div class="order-options">{% for x in o.options %}<span class="emoji">{{ x.icon }}</span> {{ x.name }}{{ ' · ' if not loop.last }}{% endfor %}</div>{% endif %}
+      {% set c = changes(o) %}
+      {% if c|trim %}<div class="order-changes">{{ c }}</div>{% endif %}
+      {% if o.vegetarian %}<div><span class="badge badge-veg">🌱 Vegetarisch</span></div>{% endif %}
+      {% if o.ingredients %}
+        <div class="order-icons emoji">{% for i in o.ingredients %}{{ i.icon }}{% endfor %}</div>
+        <div class="muted small">{% for i in o.ingredients %}{{ i.name }}{{ ', ' if not loop.last }}{% endfor %}</div>
+      {% endif %}
+      {% if o.note %}<div class="muted small">💬 {{ o.note }}</div>{% endif %}
+
       {% set current = step_index[o.status] %}
       <div class="steps">
         {% for key, icon, label in [('new', '📝', 'Eingegangen'), ('in_progress', '👨‍🍳', 'In Zubereitung'), ('done', o.item_icon or '✅', 'Fertig')] %}
-          <div class="step {{ 'reached' if loop.index0 <= current }} {{ 'current' if loop.index0 == current and o.status != 'done' }}">
+          <div class="step {{ 'reached' if loop.index0 <= current }} {{ 'current' if loop.index0 == current }}">
             <div class="dot emoji">{{ icon }}</div>{{ label }}
           </div>
         {% endfor %}
       </div>
-      {% if o.status == 'done' %}
-        <div class="big-status">Deine {{ o_noun }} ist fertig – guten Appetit! 🎉</div>
-      {% elif o.status == 'in_progress' %}
-        <div class="big-status">Wird gerade zubereitet …</div>
-      {% else %}
-        <div class="big-status">Bestellung ist eingegangen</div>
+      <div class="big-status">{{ 'Wird gerade zubereitet …' if o.status == 'in_progress' else 'Bestellung ist eingegangen' }}</div>
+
+      {% if o.status == 'new' and ctx.settings.allow_cancel %}
+        <form method="post" action="{{ ctx.base }}/orders/{{ o.id }}/cancel" data-confirm="Bestellung wirklich stornieren?" style="margin-top:.75rem">
+          {{ m.csrf() }}<button class="btn btn-sm btn-danger">Stornieren</button>
+        </form>
       {% endif %}
-    {% endif %}
+    </div>
+  {% endfor %}
 
-    {% if o.status == 'new' and ctx.settings.allow_cancel %}
-      <form method="post" action="{{ ctx.base }}/orders/{{ o.id }}/cancel" data-confirm="Bestellung wirklich stornieren?" style="margin-top:.75rem">
-        {{ m.csrf() }}<button class="btn btn-sm btn-danger">Stornieren</button>
-      </form>
-    {% endif %}
+  <div class="card" id="notify-card" hidden data-vapid-key="{{ vapid_public_key }}" data-push-url="{{ ctx.base }}/push" data-csrf="{{ csrf_token() }}">
+    <p style="margin-bottom:.5rem"><strong>🔔 Benachrichtigung, wenn deine Bestellung fertig ist?</strong></p>
+    <button class="btn btn-primary btn-block" type="button" id="notify-btn">Benachrichtigung aktivieren</button>
+    <p class="muted small" id="notify-hint" style="margin:.5rem 0 0"></p>
   </div>
-{% endfor %}
-{% else %}
-  <div class="card" style="text-align:center"><p class="muted">Du hast noch nichts bestellt.</p></div>
-{% endfor %}
-</div>
-
-{% if orders %}
-<div class="card" id="notify-card" hidden data-vapid-key="{{ vapid_public_key }}" data-push-url="{{ ctx.base }}/push" data-csrf="{{ csrf_token() }}">
-  <p style="margin-bottom:.5rem"><strong>🔔 Benachrichtigung, wenn deine Bestellung fertig ist?</strong></p>
-  <button class="btn btn-primary btn-block" type="button" id="notify-btn">Benachrichtigung aktivieren</button>
-  <p class="muted small" id="notify-hint" style="margin:.5rem 0 0"></p>
-</div>
 {% endif %}
 
-{% if can_order_more and not orders %}
-  <a class="btn btn-primary btn-lg btn-block" href="{{ ctx.base }}/menu">Jetzt {{ noun }} bestellen</a>
-{% elif can_order_more and has_current and not extra %}
-  <a class="btn btn-block" href="{{ ctx.base }}/menu">+ Weitere {{ noun }} bestellen</a>
-{% elif not event.ordering_open %}
-  <p class="muted" style="text-align:center">Gerade kann nichts bestellt werden – sobald es weitergeht, kannst du hier bestellen.</p>
+{# ------------------------------------------------ Erledigt #}
+{% if history %}
+  <section class="history">
+    <h2 class="order-group-title">Erledigt <span class="badge">{{ history|length }}</span></h2>
+    {% for o in history %}
+      <div class="history-row status-{{ o.status }}" data-order-id="{{ o.id }}" data-status="{{ o.status }}"{% if o.is_skip %} data-skip{% endif %}>
+        <span class="history-icon emoji">{{ o.item_icon }}</span>
+        <span class="history-text">
+          <strong>{{ o.item_name }}</strong>
+          <span class="muted small">
+            {% if multi %}{{ event.course_label(o.course) }} · {% endif %}#{{ o.number }} · {{ o.created_at|localtime }} Uhr
+            {%- if o.options %} · {% for x in o.options %}{{ x.name }}{{ ', ' if not loop.last }}{% endfor %}{% endif %}
+            {%- set c = changes(o) %}{% if c|trim %} · {{ c }}{% endif %}
+          </span>
+        </span>
+        {% if o.status == 'cancelled' %}<span class="badge badge-danger">Storniert</span>
+        {% elif o.is_skip %}<span class="badge">Abgemeldet</span>
+        {% else %}<span class="badge badge-ok">✓ Fertig</span>{% endif %}
+      </div>
+    {% endfor %}
+  </section>
 {% endif %}
+</div>
+
 <p class="muted small" style="text-align:center;margin-top:1rem">Diese Seite aktualisiert sich automatisch.</p>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=10"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=11"></script>{% endblock %}

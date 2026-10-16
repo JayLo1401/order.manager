@@ -291,6 +291,15 @@ body.is-fullscreen .site-header { display: none; }
 }
 .modal-options { margin-top: .75rem; font-size: 1.15rem; padding: .4rem .7rem; }
 .tile-note { font-size: .9rem; background: var(--surface-2); border-radius: 6px; padding: .15rem .4rem; }
+/* Kuechenmonitor: Nachschlag-Anfragen der Gaeste */
+.extra-requests { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .9rem; }
+.extra-request {
+  display: flex; align-items: center; gap: .6rem; padding: .5rem .6rem .5rem .8rem;
+  background: var(--warn-soft); border: 2px solid var(--warn-strong); border-radius: 14px;
+  animation: pulse 1.6s ease-in-out 3;
+}
+.extra-request .emoji { font-size: 1.4rem; }
+.extra-request-text { font-size: 1.05rem; }
 .tile-status { position: absolute; right: .7rem; bottom: .6rem; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 6px var(--primary-soft); } }
 
@@ -421,6 +430,34 @@ body.guest { background: var(--bg); }
   background: var(--ok-soft); border: 1px solid var(--ok);
 }
 .success .big { font-size: 3rem; line-height: 1; }
+
+/* Statusseite: oben was gerade geht, unten Erledigtes */
+.now-card {
+  text-align: center; padding: 1.1rem 1rem; border-radius: var(--radius); margin-bottom: 1.25rem;
+  background: var(--surface); border: 2px solid var(--primary); box-shadow: var(--shadow);
+}
+.now-card h2 { margin: .2rem 0 .3rem; font-size: 1.3rem; }
+.now-card p { margin: 0 0 .9rem; color: var(--muted); }
+.now-card form, .now-card .btn { margin-top: .25rem; }
+.now-icon { font-size: 2.4rem; line-height: 1; }
+.request-pending {
+  padding: .7rem .8rem; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-weight: 600;
+}
+.request-declined { color: var(--text) !important; }
+.ready-hint {
+  display: flex; align-items: center; gap: .6rem; padding: .75rem .9rem; margin-bottom: .75rem;
+  border-radius: var(--radius); background: var(--ok-soft); border: 1px solid var(--ok); font-size: 1.05rem;
+}
+.ready-hint .emoji { font-size: 1.6rem; }
+.history { margin-top: 2rem; padding-top: .5rem; border-top: 2px dashed var(--border); }
+.history-row {
+  display: flex; align-items: center; gap: .7rem; padding: .55rem .75rem; margin-bottom: .4rem;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+}
+.history-row.status-cancelled { opacity: .65; }
+.history-icon { font-size: 1.5rem; }
+.history-text { flex: 1; min-width: 0; display: grid; }
+.history-text .small { overflow-wrap: anywhere; }
 
 .order-card { text-align: center; }
 .order-card .order-no { font-size: 1rem; color: var(--muted); }

@@ -289,6 +289,8 @@
         const couldOrder = ordersEl.dataset.canOrder === "1";
         // Kueche hat den Gang gewechselt bzw. geschlossen
         if ((data.current_course || "") !== ordersEl.dataset.course) changed = true;
+        // Kueche hat ueber den Nachschlag entschieden
+        if ((data.extra_request || "") !== ordersEl.dataset.extraRequest) changed = true;
         if (data.can_order_more && !couldOrder) {
           // Nachschlag aus der Kueche freigegeben
           if (navigator.vibrate) navigator.vibrate([150, 80, 150]);

@@ -268,6 +268,8 @@ def change_extra_orders(
     extra = dict(guest.extra_by_course or {})
     extra[course] = max(0, extra.get(course, 0) + delta)
     guest.extra_by_course = extra
+    if delta > 0:
+        guest.set_extra_request(course, None)  # offene Anfrage ist damit erledigt
     db.flush()
     if background is not None and delta > 0:
         subscriptions = collect_subscriptions(db, guest.id)
@@ -279,6 +281,60 @@ def change_extra_orders(
                 "tag": f"extra-{guest.id}",
             }
             background.add_task(send_push, subscriptions, get_vapid_keys(db).vapid_private_pem, payload)
+
+
+def can_request_extra(db: Session, guest: Guest, host_settings: HostSettings, course: str | None) -> bool:
+    """Nachschlag anfragen: nur wenn der Gang offen ist, es ein Limit gibt, der
+    Gast es erreicht hat, seine Speise schon bekommen hat (nichts mehr in Arbeit,
+    nicht nur "Keine Vorspeise") und keine Anfrage offen ist."""
+    if course is None or host_settings.order_limit(course) == 0:
+        return False
+    if guest.extra_request(course) == "pending" or can_order_more(db, guest, host_settings, course):
+        return False
+    statuses = db.scalars(select(Order.status).where(
+        Order.guest_id == guest.id, Order.course == course, Order.status != "cancelled", Order.is_skip.is_(False)
+    )).all()
+    return bool(statuses) and all(s == "done" for s in statuses)
+
+
+def request_extra(db: Session, guest: Guest, event: Event, host_settings: HostSettings) -> None:
+    course = event.current_course
+    if not can_request_extra(db, guest, host_settings, course):
+        raise OrderError("Nachschlag kann gerade nicht angefragt werden.")
+    guest.set_extra_request(course, "pending")
+    db.flush()
+
+
+def decline_extra_request(
+    db: Session, guest: Guest, event: Event, course: str, background: BackgroundTasks | None
+) -> None:
+    if guest.extra_request(course) != "pending":
+        raise OrderError("Es gibt keine offene Anfrage.")
+    guest.set_extra_request(course, "declined")
+    db.flush()
+    if background is not None:
+        subscriptions = collect_subscriptions(db, guest.id)
+        if subscriptions:
+            payload = {
+                "title": "Leider kein Nachschlag 😔",
+                "body": f"Es ist gerade keine {event.course_noun(course)} mehr übrig.",
+                "url": f"/o/{event.token}/status",
+                "tag": f"extra-{guest.id}",
+            }
+            background.add_task(send_push, subscriptions, get_vapid_keys(db).vapid_private_pem, payload)
+
+
+def pending_extra_requests(db: Session, event: Event) -> list[dict]:
+    """Offene Nachschlag-Anfragen fuer den Kuechenmonitor, aelteste Gaeste zuerst."""
+    guests = db.scalars(select(Guest).where(Guest.event_id == event.id).order_by(Guest.id)).all()
+    return [
+        {
+            "guest_id": g.id, "guest": g.label or "Gast", "course": course,
+            "course_label": event.course_label(course), "course_noun": event.course_noun(course),
+            "course_icon": event.course_icon(course),
+        }
+        for g in guests for course, state in (g.extra_requests or {}).items() if state == "pending"
+    ]
 
 
 def change_status(db: Session, order: Order, new_status: str, background: BackgroundTasks | None) -> None:

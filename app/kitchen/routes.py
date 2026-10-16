@@ -19,8 +19,10 @@ from app.orders.service import (
     OrderError,
     change_extra_orders,
     change_status,
+    decline_extra_request,
     find_guest,
     order_to_dict,
+    pending_extra_requests,
     set_sold_out,
 )
 from app.templating import flash, templates
@@ -132,6 +134,8 @@ def orders_api(event_id: int | None = None, db: Session = Depends(get_db), user:
             # Bei unbegrenzten Bestellungen ist "Nachschlag" sinnlos
             "order_limits": {c: host_settings.order_limit(c) for c in COURSES},
             "sold_out_count": len(event.sold_out_ids),
+            # Gaeste, die um Nachschlag gebeten haben
+            "extra_requests": pending_extra_requests(db, event),
         },
         "orders": [order_to_dict(o) for o in orders],
     }
@@ -215,6 +219,27 @@ def set_guest_extra(
     change_extra_orders(db, guest, event, course, delta, background)
     db.commit()
     return {"guest_id": guest.id, "course": course, "extra_orders": guest.extra_for(course)}
+
+
+@router.post("/api/guests/{guest_id}/extra-request/decline", dependencies=[Depends(verify_csrf_header)])
+def decline_guest_extra_request(
+    guest_id: int,
+    background: BackgroundTasks,
+    course: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_login_api),
+):
+    """Nachschlag-Anfrage ablehnen (Erlauben laeuft ueber /extra mit delta=1)."""
+    guest = db.get(Guest, guest_id)
+    event = db.get(Event, guest.event_id) if guest else None
+    if guest is None or event is None or event.owner_id != user.id:
+        raise HTTPException(status_code=404)
+    try:
+        decline_extra_request(db, guest, event, course, background)
+    except OrderError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/api/orders/{order_id}/status", dependencies=[Depends(verify_csrf_header)])

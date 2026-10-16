@@ -70,6 +70,10 @@ class Event(Base):
         """Fuer Texte wie "Deine Pizza ist fertig" / "Deine Vorspeise ist fertig"."""
         return "Pizza" if self.kind_for(course) == "pizza" else self.course_label(course)
 
+    def course_plural(self, course: str) -> str:
+        """Pizzen, Vorspeisen, Hauptspeisen, Nachspeisen."""
+        return "Pizzen" if self.kind_for(course) == "pizza" else f"{self.course_label(course)}n"
+
 
 class Guest(Base):
     __tablename__ = "guests"
@@ -82,10 +86,25 @@ class Guest(Base):
     # Gang ("Nachschlag", vergeben im Kuechenmonitor), z.B. {"main": 1}.
     # Beim Aendern immer ein neues dict zuweisen.
     extra_by_course: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # Vom Gast angefragter Nachschlag je Gang: "pending" (Kueche entscheidet noch)
+    # oder "declined" (abgelehnt). Bei Freigabe wird der Eintrag entfernt.
+    # Beim Aendern immer ein neues dict zuweisen.
+    extra_requests: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
     def extra_for(self, course: str | None) -> int:
         return int((self.extra_by_course or {}).get(course, 0)) if course else 0
+
+    def extra_request(self, course: str | None) -> str | None:
+        return (self.extra_requests or {}).get(course) if course else None
+
+    def set_extra_request(self, course: str, state: str | None) -> None:
+        requests = dict(self.extra_requests or {})
+        if state is None:
+            requests.pop(course, None)
+        else:
+            requests[course] = state
+        self.extra_requests = requests
 
     @property
     def label(self) -> str:

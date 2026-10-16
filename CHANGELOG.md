@@ -8,15 +8,18 @@ Alle nennenswerten Änderungen je Version. Format angelehnt an [Keep a Changelog
 
 - Fertige Pizza vor dem Bestellen kontrollieren und abändern: Nach „Weiter“ werden die Zutaten angezeigt, einzelne lassen sich weglassen oder dazunehmen („ohne Zwiebel, + Jalapeños“). Danach folgt als eigener Schritt die Frage nach Optionen wie Calzone.
 - Anmerkung bei Pizzen nur noch eingeklappt im letzten Schritt.
+- Aufgeräumte Statusseite: Oben steht, was im aktuellen Gang geht („Jetzt bestellen!“, „Du kannst noch eine weitere bestellen“, „Jeder Gast darf eine Pizza bestellen“, Pause). Darunter die laufenden Bestellungen, Fertiges und Storniertes kompakt und abgetrennt unter „Erledigt“.
+- Nachschlag anfragen: Ist das Limit erreicht und die Speise fertig, kann der Gast einmal um Nachschlag bitten. Erneut fragen geht erst, wenn die Küche entschieden hat.
+
+### Küchenmonitor
+
+- Nachschlag-Anfragen erscheinen oben als Leiste (mit Ton) und lassen sich erlauben oder ablehnen; der Gast bekommt eine Push-Nachricht.
+- Abgeänderte Pizzen zeigen weggelassene und hinzugefügte Zutaten deutlich auf Kachel und im Detail.
 
 ### Verwaltung
 
 - Bestell-Limit pro Gast getrennt für Vorspeise, Hauptspeise und Nachspeise einstellbar (z.B. 2 Vorspeisen, 1 Hauptspeise). Das bisherige Limit wird für alle Gänge übernommen.
 - Screenshots im Ordner `screenshots/`.
-
-### Küchenmonitor
-
-- Abgeänderte Pizzen zeigen weggelassene und hinzugefügte Zutaten deutlich auf Kachel und im Detail.
 
 ## [1.0.1] – 2026-10-15
 
