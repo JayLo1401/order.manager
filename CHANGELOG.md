@@ -2,6 +2,17 @@
 
 Alle nennenswerten Änderungen je Version. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionsnummern nach [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Gäste
+
+- Fertige Pizza vor dem Bestellen kontrollieren und abändern: Nach „Weiter“ werden die Zutaten angezeigt, einzelne lassen sich weglassen oder dazunehmen („ohne Zwiebel, + Jalapeños“). Ohne Änderung genügt ein Tipp auf „Bestellung abschließen“.
+- Anmerkung bei Pizzen nur noch eingeklappt im Kontroll-Fenster.
+
+### Küchenmonitor
+
+- Abgeänderte Pizzen zeigen weggelassene und hinzugefügte Zutaten deutlich auf Kachel und im Detail.
+
 ## [1.0.1] – 2026-10-15
 
 Erste veröffentlichte Version, unter der Lizenz [PolyForm Noncommercial 1.0.0](LICENSE.md) – frei für private und nicht-kommerzielle Nutzung, kommerzielle Nutzung nicht erlaubt.

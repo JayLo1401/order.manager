@@ -212,6 +212,70 @@ def test_custom_pizza_respects_limits_and_inactive(client, db_session, admin):
     assert orders[0].is_custom and [i["name"] for i in orders[0].ingredients] == [ingredients[1].name]
 
 
+def test_preset_pizza_can_be_changed_before_ordering(client, db_session, admin):
+    host_settings = db_session.scalar(select(HostSettings).where(HostSettings.owner_id == admin.id))
+    host_settings.max_orders_per_guest = 0
+    db_session.commit()
+    event = _create_link(client, db_session, admin)
+    guest = _guest(client)
+    _join(guest, event)
+
+    salami = db_session.scalar(select(Product).where(Product.owner_id == admin.id, Product.name == "Salami"))
+    base = list(salami.ingredients)
+    meat = [i for i in base if not i.vegetarian]
+    extra = db_session.scalar(select(Ingredient).where(
+        Ingredient.owner_id == admin.id, Ingredient.vegetarian.is_(True), Ingredient.id.not_in([i.id for i in base])
+    ).limit(1))
+
+    # Kontroll-Fenster statt direkt bestellen, Anmerkung dort eingeklappt
+    menu = guest.get(f"/o/{event.token}/menu").text
+    assert "Weiter ›" in menu and "data-product-ingredients" in menu and "note-details" in menu
+
+    token = csrf_from(guest, f"/o/{event.token}/menu")
+
+    def order(**data):
+        guest.post(f"/o/{event.token}/order", data={"csrf_token": token, "product_id": salami.id, **data})
+        return db_session.scalars(select(Order).order_by(Order.id)).all()
+
+    # Unveraendert bestaetigt -> keine Aenderungen vermerkt
+    orders = order(customize="1", ingredient_ids=[i.id for i in base])
+    assert [i["name"] for i in orders[-1].ingredients] == [i.name for i in base]
+    assert orders[-1].removed_ingredients == [] and not any(i.get("added") for i in orders[-1].ingredients)
+
+    # Ohne Salami, mit einer Extra-Zutat -> vegetarisch, Kueche sieht die Aenderung
+    keep = [i.id for i in base if i not in meat]
+    orders = order(customize="1", ingredient_ids=keep + [extra.id])
+    changed = orders[-1]
+    assert changed.item_name == "Salami" and changed.vegetarian
+    assert [i["name"] for i in changed.removed_ingredients] == [i.name for i in meat]
+    assert changed.ingredients[-1] == {"name": extra.name, "icon": extra.icon, "vegetarian": True, "added": True}
+    kitchen = client.get("/kitchen/api/orders").json()["orders"]
+    assert kitchen[-1]["removed_ingredients"][0]["name"] == meat[0].name
+    status = guest.get(f"/o/{event.token}/status").text
+    assert f"ohne" in status and f"{extra.name}" in status
+
+    # Ohne customize (z.B. ohne JavaScript) bleibt die Pizza wie auf der Karte
+    orders = order(ingredient_ids=[extra.id])
+    assert [i["name"] for i in orders[-1].ingredients] == [i.name for i in base]
+
+    # Nicht erlaubt: alles weglassen, inaktive oder ausverkaufte Zutat dazunehmen, Limit ueberschreiten
+    count = len(orders)
+    assert len(order(customize="1")) == count
+    extra.active = False
+    db_session.commit()
+    assert len(order(customize="1", ingredient_ids=keep + [extra.id])) == count
+    extra.active = True
+    event.sold_out_ingredient_ids = [extra.id]
+    db_session.commit()
+    assert len(order(customize="1", ingredient_ids=keep + [extra.id])) == count
+    event.sold_out_ingredient_ids = []
+    host_settings.max_custom_ingredients = len(base)
+    db_session.commit()
+    assert len(order(customize="1", ingredient_ids=[i.id for i in base] + [extra.id])) == count
+    # Weglassen + Dazunehmen innerhalb des Limits geht
+    assert len(order(customize="1", ingredient_ids=keep + [extra.id])) == count + 1
+
+
 def test_duplicate_guest_name_asks_before_reuse(client, db_session, admin):
     from app.models.event import Guest
 

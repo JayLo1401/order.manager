@@ -42,8 +42,10 @@ def test_sold_out_hides_pizzas_and_blocks_orders(client, db_session, admin, setu
     # Pizza "Salami" ist fuer Gaeste weg, Margherita noch da
     menu = guest.get(f"/o/{event.token}/menu").text
     salami = db_session.scalar(select(Product).where(Product.owner_id == admin.id, Product.name == "Salami"))
-    assert f'value="{salami.id}"' not in menu
+    assert f'name="product_id" value="{salami.id}"' not in menu
     assert "Margherita" in menu
+    # ... und wird auch nicht als Extra-Zutat angeboten
+    assert f'name="ingredient_ids" value="{salami_ing.id}"' not in menu
 
     # Wunschpizza: Zutat ausgegraut
     custom = guest.get(f"/o/{event.token}/custom").text

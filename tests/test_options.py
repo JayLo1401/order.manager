@@ -57,7 +57,7 @@ def test_order_with_options_and_rules(client, db_session, admin, setup):
     cheese = db_session.scalar(select(ProductOption).where(ProductOption.name == "Käserand"))
 
     menu = guest.get(f"/o/{event.token}/menu").text
-    assert "Wie hättest du sie gern?" in menu and "Sternpizza" in menu
+    assert "Auf deiner Pizza" in menu and "Sternpizza" in menu
     mapping = json.loads(re.search(r'data-product-options="([^"]+)"', menu).group(1).replace("&#34;", '"'))
     assert star.id in mapping[str(margherita.id)]
     assert star.id not in mapping[str(salami.id)]

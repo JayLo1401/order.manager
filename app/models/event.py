@@ -111,7 +111,10 @@ class Order(Base):
     # Zutaten bestehende Bestellungen nicht veraendern: [{"name": ..., "icon": ...}]
     item_name: Mapped[str] = mapped_column(String(120))
     item_icon: Mapped[str] = mapped_column(String(16), default="")
+    # Bei abgeaenderten fertigen Pizzen tragen hinzugefuegte Zutaten "added": True
     ingredients: Mapped[list] = mapped_column(JSON, default=list)
+    # Von einer fertigen Pizza weggelassene Zutaten ("ohne Zwiebel"): [{"name": ..., "icon": ...}]
+    removed_ingredients: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     # Gewaehlte Optionen (Momentaufnahme): [{"name": ..., "icon": ..., "group": ...}]
     options: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     note: Mapped[str] = mapped_column(String(300), default="")

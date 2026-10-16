@@ -37,6 +37,8 @@
   // ---------------------------------------------------------------- Optionen
   // Vor dem Absenden: Gibt es fuer das gewaehlte Gericht Optionen (Calzone,
   // Kaeserand, Eissorte ...), fragt ein Fenster danach. Sonst wird direkt bestellt.
+  // Bei fertigen Pizzen kommt das Fenster immer: Zutaten kontrollieren und bei
+  // Bedarf abaendern ("ohne Zwiebel, mit Jalapenos") - ohne Aenderung reicht ein Tipp.
   const sheet = $("#options-sheet");
   const orderForm = sheet && sheet.closest("form");
   if (orderForm) {
@@ -44,13 +46,71 @@
     const map = orderForm.dataset.productOptions ? JSON.parse(orderForm.dataset.productOptions) : null;
     const confirmBtn = sheet.querySelector("[data-options-confirm]");
     const requiredHint = sheet.querySelector("[data-options-required]");
+    const optionalHint = sheet.querySelector("[data-options-optional]");
+    const review = sheet.hasAttribute("data-review");
+    // {pizza_id: [ingredient_ids]} laut Karte
+    const ingMap = review ? JSON.parse(orderForm.dataset.productIngredients || "{}") : {};
+    const tiles = Array.from(sheet.querySelectorAll("[data-ingredient-id]"));
+    const baseGrid = sheet.querySelector("[data-ing-base]");
+    const extraGrid = sheet.querySelector("[data-ing-extra]");
+    const summary = sheet.querySelector("[data-review-summary]");
+    const max = Number(sheet.dataset.max || 0);
     let confirmed = false;
     let choiceRequired = false;
+    let baseIds = [];
+
+    const selectedProduct = () => orderForm.querySelector('input[name="product_id"]:checked');
 
     const allowedIds = () => {
       if (!map) return null;
-      const selected = orderForm.querySelector('input[name="product_id"]:checked');
+      const selected = selectedProduct();
       return selected ? (map[selected.value] || []) : [];
+    };
+
+    // Zeigt, was sich gegenueber der Karte aendert, und haelt das Zutaten-Limit ein
+    const updateReview = () => {
+      const removed = [];
+      const added = [];
+      let count = 0;
+      tiles.forEach((tile) => {
+        const box = tile.querySelector("input");
+        if (box.checked) count += 1;
+        if (tile.dataset.base === "1" && !box.checked) removed.push(`ohne ${box.dataset.name}`);
+        if (tile.dataset.base !== "1" && box.checked) added.push(`+ ${box.dataset.name}`);
+      });
+      const limit = max ? Math.max(max, baseIds.length) : 0;
+      tiles.forEach((tile) => {
+        const box = tile.querySelector("input");
+        box.disabled = limit > 0 && count >= limit && !box.checked;
+      });
+      const changes = removed.concat(added);
+      summary.classList.remove("is-error");
+      summary.classList.toggle("is-changed", changes.length > 0);
+      summary.textContent = changes.length ? changes.join(" · ") : "✓ So wie auf der Karte";
+      return count;
+    };
+
+    const prepareReview = (product) => {
+      baseIds = product ? (ingMap[product.value] || []) : [];
+      const vegOnly = !!($("#veg-only") && $("#veg-only").checked);
+      // Belegung laut Karte vorauswaehlen, alle anderen Zutaten zum Dazunehmen
+      tiles.forEach((tile) => {
+        const onPizza = baseIds.includes(Number(tile.dataset.ingredientId));
+        tile.dataset.base = onPizza ? "1" : "0";
+        tile.querySelector("input").checked = onPizza;
+        // Bei "Nur vegetarisch" kein Fleisch/Fisch zum Dazunehmen anbieten
+        tile.hidden = !onPizza && vegOnly && tile.dataset.vegetarian !== "1";
+        (onPizza ? baseGrid : extraGrid).appendChild(tile);
+      });
+      sheet.querySelector("[data-ing-base-section]").hidden = !baseIds.length;
+      sheet.querySelector("[data-ing-extra-section]").hidden = !extraGrid.querySelector("[data-ingredient-id]:not([hidden])");
+      const title = sheet.querySelector("[data-review-title]");
+      const icon = document.createElement("span");
+      icon.className = "emoji";
+      icon.textContent = product ? product.dataset.icon : "";
+      title.replaceChildren(icon, ` ${product ? product.dataset.name : ""}`);
+      sheet.querySelector("[data-customize]").disabled = false;
+      updateReview();
     };
 
     orderForm.addEventListener("submit", (ev) => {
@@ -66,21 +126,24 @@
       sheet.querySelectorAll("[data-option-section]").forEach((section) => {
         section.hidden = !section.querySelector("[data-option-id]:not([hidden])");
       });
-      if (!visible) return; // keine Optionen fuer dieses Gericht -> direkt bestellen
+      if (!visible && !review) return; // keine Optionen fuer dieses Gericht -> direkt bestellen
       ev.preventDefault();
+      const product = selectedProduct();
+      if (review) prepareReview(product);
       // Pflicht-Auswahl (z.B. Eissorte), sofern es fuer das Gericht eine gibt
-      const product = orderForm.querySelector('input[name="product_id"]:checked');
       choiceRequired = !!(product && product.dataset.choiceRequired === "1"
         && sheet.querySelector('[data-option-id]:not([hidden]) input[data-group="shape"]'));
-      sheet.querySelector("[data-options-optional]").hidden = choiceRequired;
-      requiredHint.hidden = true;
+      if (optionalHint) optionalHint.hidden = choiceRequired || !visible;
+      if (requiredHint) requiredHint.hidden = true;
       sheet.hidden = false;
-      confirmBtn.focus();
+      sheet.querySelector(".modal").scrollTop = 0;
+      confirmBtn.focus({ preventScroll: true });
     });
 
-    // "Auswahl": hoechstens eine (Calzone ODER Sternpizza, Vanille- ODER Erdbeereis)
     sheet.addEventListener("change", (ev) => {
       const box = ev.target;
+      if (box.name === "ingredient_ids") { updateReview(); return; }
+      // "Auswahl": hoechstens eine (Calzone ODER Sternpizza, Vanille- ODER Erdbeereis)
       if (box.checked && box.dataset.group === "shape") {
         sheet.querySelectorAll('input[data-group="shape"]').forEach((other) => {
           if (other !== box) other.checked = false;
@@ -92,6 +155,12 @@
     confirmBtn.addEventListener("click", () => {
       if (choiceRequired && !sheet.querySelector('input[data-group="shape"]:checked')) {
         requiredHint.hidden = false;
+        requiredHint.scrollIntoView({ block: "nearest" });
+        return;
+      }
+      if (review && baseIds.length && !updateReview()) {
+        summary.classList.add("is-error");
+        summary.textContent = "Bitte lass mindestens eine Zutat auf der Pizza.";
         return;
       }
       confirmed = true;

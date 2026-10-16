@@ -25,6 +25,11 @@
   }
 
   const optionsText = (o) => (o.options || []).map((x) => `${x.icon} ${x.name}`.trim()).join(" · ");
+  // Abgeaenderte fertige Pizza: "ohne 🧅 Zwiebel · + 🌶️ Jalapeños"
+  const changesText = (o) => [
+    ...(o.removed_ingredients || []).map((i) => `ohne ${i.icon} ${i.name}`),
+    ...(o.ingredients || []).filter((i) => i.added).map((i) => `+ ${i.icon} ${i.name}`),
+  ].join(" · ");
   // Gang nur anzeigen, wenn es heute mehrere gibt
   const showCourse = () => (eventInfo.courses || []).length > 1;
 
@@ -57,6 +62,7 @@
         <div class="tile-guest">${esc(o.guest || "Gast")}${o.guest_extra_orders ? ` <span title="Nachschlag freigegeben">🎁${o.guest_extra_orders > 1 ? o.guest_extra_orders : ""}</span>` : ""}</div>
         <div class="tile-item"><span class="emoji">${esc(o.item_icon)}</span> ${esc(o.item_name)}${o.vegetarian ? ' <span class="badge badge-veg">🌱</span>' : ""}</div>
         ${optionsText(o) ? `<div class="tile-options">${esc(optionsText(o))}</div>` : ""}
+        ${changesText(o) ? `<div class="tile-options">${esc(changesText(o))}</div>` : ""}
         <div class="tile-icons emoji">${esc(icons)}</div>
         ${o.note ? `<div class="tile-note">💬 ${esc(o.note)}</div>` : ""}
         ${o.status === "in_progress" ? '<span class="tile-status badge badge-warn">In Arbeit</span>' : ""}
@@ -155,8 +161,13 @@
     $("#modal-guest").textContent = (o.guest || "Gast") + (o.vegetarian ? " · 🌱 vegetarisch" : "");
     $("#modal-options").hidden = !optionsText(o);
     $("#modal-options").textContent = optionsText(o);
+    $("#modal-changes").hidden = !changesText(o);
+    $("#modal-changes").textContent = changesText(o);
     $("#modal-ingredients").innerHTML = o.ingredients
-      .map((i) => `<div><span class="emoji">${esc(i.icon)}</span> ${esc(i.name)}</div>`).join("");
+      .map((i) => `<div${i.added ? ' class="ing-added"' : ""}>${i.added ? "+ " : ""}<span class="emoji">${esc(i.icon)}</span> ${esc(i.name)}</div>`)
+      .concat((o.removed_ingredients || [])
+        .map((i) => `<div class="ing-removed">ohne <span class="emoji">${esc(i.icon)}</span> ${esc(i.name)}</div>`))
+      .join("");
     $("#modal-note").hidden = !o.note;
     $("#modal-note").textContent = o.note ? `💬 ${o.note}` : "";
     $("#modal-meta").textContent = `Bestellt um ${o.created_time} Uhr (vor ${minutesSince(o.created_at)})`;

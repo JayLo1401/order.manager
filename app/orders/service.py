@@ -48,6 +48,7 @@ def order_to_dict(order: Order) -> dict:
         "is_skip": order.is_skip,
         "vegetarian": order.vegetarian,
         "ingredients": order.ingredients or [],
+        "removed_ingredients": order.removed_ingredients or [],
         "options": order.options or [],
         "note": order.note,
         "guest": order.guest.label if order.guest else "",
@@ -129,6 +130,39 @@ def validate_options(
     return sorted(chosen, key=lambda o: (o.option_group != "shape", o.sort_order, o.name))
 
 
+def customize_pizza(
+    db: Session, event: Event, host_settings: HostSettings, product: Product, ingredient_ids: list[int]
+) -> tuple[list[Ingredient], list[Ingredient], list[Ingredient]]:
+    """Fertige Pizza abgeaendert ("ohne Zwiebel, mit Jalapenos"). ingredient_ids
+    ist die komplette gewuenschte Belegung. Liefert (behalten, dazu, weggelassen)."""
+    wanted = set(ingredient_ids)
+    base = list(product.ingredients)
+    base_ids = {i.id for i in base}
+    extra_ids = wanted - base_ids
+    extras = list(db.scalars(
+        select(Ingredient)
+        .where(
+            Ingredient.owner_id == event.owner_id,
+            Ingredient.kind == "pizza",
+            Ingredient.active.is_(True),
+            Ingredient.id.in_(extra_ids or [0]),
+        )
+        .order_by(Ingredient.sort_order, Ingredient.name)
+    ))
+    if len(extras) != len(extra_ids):
+        raise OrderError("Eine gewählte Zutat ist leider nicht verfügbar.")
+    kept = [i for i in base if i.id in wanted]
+    removed = [i for i in base if i.id not in wanted]
+    if base and not kept and not extras:
+        raise OrderError("Bitte lass mindestens eine Zutat auf der Pizza.")
+    # Das Wunschpizza-Limit gilt auch fuers Dazunehmen - eine Pizza, die laut
+    # Karte schon mehr Zutaten hat, darf aber so bleiben.
+    limit = host_settings.max_custom_ingredients
+    if limit and extras and len(kept) + len(extras) > max(limit, len(base)):
+        raise OrderError(f"Maximal {max(limit, len(base))} Zutaten erlaubt.")
+    return kept, extras, removed
+
+
 def place_order(
     db: Session,
     event: Event,
@@ -140,9 +174,13 @@ def place_order(
     option_ids: list[int] | None = None,
     skip: bool = False,
     ignore_limit: bool = False,
+    customize: bool = False,
 ) -> Order:
     """skip=True: "Ich moechte keine Vorspeise/Nachspeise" (nur bei diesen Gaengen).
-    ignore_limit=True: Erfassung durch die Kueche, dort gilt das Bestell-Limit nicht."""
+    ignore_limit=True: Erfassung durch die Kueche, dort gilt das Bestell-Limit nicht.
+    customize=True: fertige Pizza mit der Belegung aus ingredient_ids."""
+    added: list[Ingredient] = []
+    removed: list[Ingredient] = []
     course = event.current_course
     if course is None:
         raise OrderError("Gerade kann nichts bestellt werden.")
@@ -163,6 +201,9 @@ def place_order(
             raise OrderError("Das ist leider nicht mehr verfügbar.")
         item_name, item_icon, is_custom = product.name, product.icon, False
         ingredients = product.ingredients
+        if customize and kind == "pizza":
+            kept, added, removed = customize_pizza(db, event, host_settings, product, ingredient_ids)
+            ingredients = kept + added
         options = validate_options(db, event, kind, product, option_ids or [])
     else:
         if kind != "pizza":
@@ -206,7 +247,11 @@ def place_order(
         is_skip=skip,
         item_name=item_name,
         item_icon=item_icon,
-        ingredients=[{"name": i.name, "icon": i.icon, "vegetarian": i.vegetarian} for i in ingredients],
+        ingredients=[
+            {"name": i.name, "icon": i.icon, "vegetarian": i.vegetarian, **({"added": True} if i in added else {})}
+            for i in ingredients
+        ],
+        removed_ingredients=[{"name": i.name, "icon": i.icon} for i in removed],
         options=[{"name": o.name, "icon": o.icon, "group": o.option_group} for o in options],
         note=note.strip()[:300] if host_settings.allow_note else "",
         status="new",

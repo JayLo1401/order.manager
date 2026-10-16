@@ -178,8 +178,19 @@ def menu(request: Request, ctx: GuestContext = Depends(require_guest), db: Sessi
     options = options_for(db, ctx.event.owner_id, ctx.kind)
     # Welche Optionen gibt es bei welcher Pizza? (fuer das Options-Fenster)
     product_options = {p.id: [o.id for o in options if o.available_for(p)] for p in products}
+    # Fertige Pizza vor dem Bestellen abaendern ("ohne Zwiebel, mit Jalapenos")
+    ingredients, product_ingredients = [], {}
+    if ctx.kind == "pizza" and products:
+        sold_out = ctx.event.sold_out_ids
+        ingredients = [i for i in db.scalars(
+            select(Ingredient)
+            .where(Ingredient.owner_id == ctx.event.owner_id, Ingredient.kind == "pizza", Ingredient.active.is_(True))
+            .order_by(Ingredient.sort_order, Ingredient.name)
+        ) if i.id not in sold_out]
+        product_ingredients = {p.id: [i.id for i in p.ingredients] for p in products}
     return _render(request, "menu.html", ctx, products=products, options=options,
-                   product_options=product_options)
+                   product_options=product_options, ingredients=ingredients,
+                   product_ingredients=product_ingredients)
 
 
 @router.get("/custom")
@@ -206,12 +217,13 @@ def order(
     option_ids: list[int] = Form(default=[]),
     note: str = Form(""),
     skip: bool = Form(False),
+    customize: bool = Form(False),
     ctx: GuestContext = Depends(require_guest),
     db: Session = Depends(get_db),
 ):
     try:
         order = place_order(db, ctx.event, ctx.guest, ctx.settings, product_id, ingredient_ids, note, option_ids,
-                            skip, ignore_limit=ctx.kitchen)
+                            skip, ignore_limit=ctx.kitchen, customize=customize)
     except OrderError as exc:
         flash(request, str(exc), "error")
         return RedirectResponse(f"{ctx.base}/{'custom' if not product_id and ctx.allow_custom else 'menu'}",

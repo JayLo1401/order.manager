@@ -13,7 +13,8 @@
   </form>
 {% endif %}
 
-<form method="post" action="{{ ctx.base }}/order" id="order-form" data-product-options="{{ product_options|tojson|forceescape }}">
+<form method="post" action="{{ ctx.base }}/order" id="order-form" data-product-options="{{ product_options|tojson|forceescape }}"
+      {% if ingredients %}data-product-ingredients="{{ product_ingredients|tojson|forceescape }}"{% endif %}>
   {{ m.csrf() }}
   <div class="option-list">
     {% if ctx.allow_custom %}
@@ -27,7 +28,8 @@
     {% endif %}
     {% for p in products %}
       <label class="option" data-veg-item="{{ 1 if p.vegetarian else 0 }}">
-        <input type="radio" name="product_id" value="{{ p.id }}" required {% if p.choice_required %}data-choice-required="1"{% endif %}>
+        <input type="radio" name="product_id" value="{{ p.id }}" required data-name="{{ p.name }}" data-icon="{{ p.icon }}"
+               {% if p.choice_required %}data-choice-required="1"{% endif %}>
         <span class="option-body">
           <span class="option-icon emoji">{{ p.icon }}</span>
           <span class="option-text">
@@ -49,19 +51,20 @@
   {% endif %}
 
   {% if products %}
-    {% if ctx.settings.allow_note %}
+    {# Bei Pizzen steht die Anmerkung eingeklappt im Kontroll-Fenster #}
+    {% if ctx.settings.allow_note and not ingredients %}
       <div class="field" style="margin-top:1rem">
         <label for="note">Anmerkung <span class="muted small">(optional)</span></label>
-        <input type="text" id="note" name="note" maxlength="300" placeholder="{{ 'z.B. ohne Oregano, gut durch …' if pizza else 'z.B. ohne Zwiebeln …' }}">
+        <input type="text" id="note" name="note" maxlength="300" placeholder="z.B. ohne Zwiebeln …">
       </div>
     {% endif %}
     <div class="order-bar">
       <div class="order-bar-inner">
-        <button class="btn btn-primary btn-lg btn-block" type="submit" data-once>Jetzt bestellen</button>
+        <button class="btn btn-primary btn-lg btn-block" type="submit" data-once>{{ 'Weiter ›' if ingredients else 'Jetzt bestellen' }}</button>
       </div>
     </div>
   {% endif %}
   {% include "guest/_options_sheet.html" %}
 </form>
 {% endblock %}
-{% block scripts %}<script src="/static/js/guest.js?v=8"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/guest.js?v=9"></script>{% endblock %}
